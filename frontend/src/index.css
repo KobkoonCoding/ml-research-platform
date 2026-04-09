@@ -982,6 +982,23 @@
   --radius-xl: 20px;
 }
 
+/* ── Legacy vars: Light mode overrides ── */
+:root[data-theme="light"] {
+  --bg-color: #F8FAFC;
+  --bg-elevated: #F1F5F9;
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-muted: #64748B;
+  --surface-base: rgba(255, 255, 255, 0.9);
+  --surface-card: rgba(255, 255, 255, 0.85);
+  --surface-border: rgba(0, 0, 0, 0.08);
+  --surface-glow: rgba(99, 102, 241, 0.1);
+  --success-bg: rgba(5, 150, 105, 0.08);
+  --warning-bg: rgba(217, 119, 6, 0.08);
+  --danger-bg: rgba(220, 38, 38, 0.08);
+  --info-bg: rgba(37, 99, 235, 0.08);
+}
+
 /* ── Original Layout ── */
 .app-container {
   max-width: 1400px;
@@ -1243,6 +1260,13 @@ body::before {
 .select-field option {
   background: var(--bg-elevated);
   color: var(--text-primary);
+}
+:root[data-theme="light"] .select-field option {
+  background: #FFFFFF;
+  color: #0F172A;
+}
+:root[data-theme="light"] .select-field {
+  color-scheme: light;
 }
 
 /* ── Original Dropzone ── */

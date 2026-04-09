@@ -17,8 +17,8 @@ const Plot = ({ id, data, layout, style }) => {
         plot_bgcolor: 'rgba(0,0,0,0.15)',
         font: { color: '#94a3b8', family: 'Inter, sans-serif', size: 11 },
         margin: { t: 30, r: 20, b: 40, l: 50 },
-        xaxis: { gridcolor: 'rgba(255,255,255,0.06)' },
-        yaxis: { gridcolor: 'rgba(255,255,255,0.06)' },
+        xaxis: { gridcolor: 'var(--border-subtle)' },
+        yaxis: { gridcolor: 'var(--border-subtle)' },
         ...layout,
       }
       window.Plotly.newPlot(ref.current, data, merged, { responsive: true, displayModeBar: false })

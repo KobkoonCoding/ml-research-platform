@@ -542,12 +542,12 @@ export default function EDADashboard({ analysis, targetColumn, onTargetChange, o
                     textposition: 'outside',
                   }]}
                   layout={{
-                    height: 280,
-                    margin: { t: 15, b: 60, l: 40, r: 10 },
+                    height: 320,
+                    margin: { t: 40, b: 60, l: 50, r: 15 },
                     xaxis: { tickangle: -30 },
                     yaxis: { title: 'Count' },
                   }}
-                  style={{ minHeight: 280 }}
+                  style={{ minHeight: 320 }}
                 />
               </div>
             ))}
