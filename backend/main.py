@@ -27,11 +27,17 @@ from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, roc_auc_score, roc_curve, precision_recall_curve
 from cv_pipeline import apply_pipeline_cv
 import time
-import torch
-import torchvision.transforms as transforms
-from torchvision.models import efficientnet_v2_s, EfficientNet_V2_S_Weights
-from PIL import Image
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, LabelEncoder
+
+# PyTorch is optional (Module 3 only) — lazy import to save RAM on free hosting
+try:
+    import torch
+    import torchvision.transforms as transforms
+    from torchvision.models import efficientnet_v2_s, EfficientNet_V2_S_Weights
+    from PIL import Image
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
 
 app = FastAPI(title="ML Research App")
 
@@ -851,16 +857,20 @@ def predict(req: PredictRequest):
 
 
 # ─── Category 3: Image Classification ───
-# Load a pre-trained model once
-try:
-    weights = EfficientNet_V2_S_Weights.DEFAULT
-    cv_model = efficientnet_v2_s(weights=weights)
-    cv_model.eval()
-    preprocess_img = weights.transforms()
-    imagenet_classes = weights.meta["categories"]
-except Exception as e:
-    print(f"Warning: Could not load CV model: {e}")
-    cv_model = None
+# Load a pre-trained model once (only if PyTorch is available)
+cv_model = None
+preprocess_img = None
+imagenet_classes = None
+if TORCH_AVAILABLE:
+    try:
+        weights = EfficientNet_V2_S_Weights.DEFAULT
+        cv_model = efficientnet_v2_s(weights=weights)
+        cv_model.eval()
+        preprocess_img = weights.transforms()
+        imagenet_classes = weights.meta["categories"]
+    except Exception as e:
+        print(f"Warning: Could not load CV model: {e}")
+        cv_model = None
 
 @app.post("/category3/predict-image")
 async def predict_image(file: UploadFile = File(...)):

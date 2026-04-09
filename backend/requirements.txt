@@ -7,5 +7,3 @@ imbalanced-learn
 python-multipart
 scipy
 openpyxl
-torch
-torchvision
