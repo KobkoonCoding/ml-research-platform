@@ -1,10 +1,11 @@
-import React, { Suspense, lazy, useRef, useState, useEffect } from 'react'
+import React, { Suspense, lazy, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, useInView, useScroll, useTransform, useMotionTemplate, useMotionValue, AnimatePresence } from 'framer-motion'
 import {
-  Zap, ArrowRight, BrainCircuit, Database, Cpu,
+  Zap, ArrowRight, BrainCircuit, Database, Cpu, Moon, Sun,
   MonitorPlay, Activity, FileCheck2, Beaker, GraduationCap, ShieldCheck, X, Globe
 } from 'lucide-react'
+import { useTheme } from '../context/ThemeContext'
 
 const Spline = lazy(() => import('@splinetool/react-spline'))
 
@@ -311,17 +312,9 @@ function InteractiveModuleCard({ module, index }) {
    ══════════════════════════════════════════════════════════════ */
 
 export default function LandingPage() {
+  const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
   const [showModuleModal, setShowModuleModal] = useState(false)
-
-  // Force dark theme on landing page, restore previous theme on unmount
-  useEffect(() => {
-    const prev = document.documentElement.getAttribute('data-theme')
-    document.documentElement.setAttribute('data-theme', 'dark')
-    return () => {
-      if (prev) document.documentElement.setAttribute('data-theme', prev)
-    }
-  }, [])
 
   // Custom Parallax Scroll hooks
   const { scrollY } = useScroll()
@@ -354,6 +347,16 @@ export default function LandingPage() {
           <Zap className="w-5 h-5 text-primary" />
           NEXUS
         </motion.div>
+        <motion.button
+          initial={{ opacity: 0, x: 20 }} 
+          animate={{ opacity: 1, x: 0 }} 
+          transition={{ duration: 0.5 }}
+          onClick={toggleTheme}
+          className="w-11 h-11 rounded-full border border-white/15 bg-white/5 backdrop-blur-sm flex items-center justify-center hover:bg-white/10 hover:scale-105 active:scale-95 transition-all"
+          aria-label="Toggle theme"
+        >
+          {theme === 'dark' ? <Sun className="w-4.5 h-4.5 text-white/80" /> : <Moon className="w-4.5 h-4.5 text-white/80" />}
+        </motion.button>
       </nav>
 
       <main className="relative z-10 overflow-hidden">
