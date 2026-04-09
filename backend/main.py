@@ -27,17 +27,17 @@ from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, roc_auc_score, roc_curve, precision_recall_curve
 from cv_pipeline import apply_pipeline_cv
 import time
+import json
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, LabelEncoder
+from PIL import Image
 
-# PyTorch is optional (Module 3 only) — lazy import to save RAM on free hosting
+# ONNX Runtime for lightweight image classification (Module 3)
+# Uses ~100MB RAM vs PyTorch's ~1.5GB
 try:
-    import torch
-    import torchvision.transforms as transforms
-    from torchvision.models import efficientnet_v2_s, EfficientNet_V2_S_Weights
-    from PIL import Image
-    TORCH_AVAILABLE = True
+    import onnxruntime as ort
+    ONNX_AVAILABLE = True
 except ImportError:
-    TORCH_AVAILABLE = False
+    ONNX_AVAILABLE = False
 
 app = FastAPI(title="ML Research App")
 
@@ -856,49 +856,105 @@ def predict(req: PredictRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ─── Category 3: Image Classification ───
-# Load a pre-trained model once (only if PyTorch is available)
-cv_model = None
-preprocess_img = None
+# ─── Category 3: Image Classification (ONNX Runtime) ───
+# Uses MobileNetV2 ONNX model — lightweight (~14MB) and fast
+onnx_session = None
 imagenet_classes = None
-if TORCH_AVAILABLE:
-    try:
-        weights = EfficientNet_V2_S_Weights.DEFAULT
-        cv_model = efficientnet_v2_s(weights=weights)
-        cv_model.eval()
-        preprocess_img = weights.transforms()
-        imagenet_classes = weights.meta["categories"]
-    except Exception as e:
-        print(f"Warning: Could not load CV model: {e}")
-        cv_model = None
+
+def _load_onnx_model():
+    """Lazy-load ONNX model on first request to save startup RAM."""
+    global onnx_session, imagenet_classes
+    if onnx_session is not None:
+        return
+    if not ONNX_AVAILABLE:
+        return
+
+    import urllib.request
+    model_dir = os.path.join(os.path.dirname(__file__), "models")
+    os.makedirs(model_dir, exist_ok=True)
+
+    model_path = os.path.join(model_dir, "mobilenetv2-12.onnx")
+    labels_path = os.path.join(model_dir, "imagenet_classes.json")
+
+    # Download model if not cached
+    if not os.path.exists(model_path):
+        print("Downloading MobileNetV2 ONNX model (~14MB)...")
+        urllib.request.urlretrieve(
+            "https://github.com/onnx/models/raw/main/validated/vision/classification/mobilenet/model/mobilenetv2-12.onnx",
+            model_path
+        )
+        print("Model downloaded.")
+
+    # Download or create ImageNet labels
+    if not os.path.exists(labels_path):
+        print("Downloading ImageNet labels...")
+        urllib.request.urlretrieve(
+            "https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt",
+            labels_path + ".txt"
+        )
+        with open(labels_path + ".txt", "r") as f:
+            classes = [line.strip() for line in f.readlines()]
+        with open(labels_path, "w") as f:
+            json.dump(classes, f)
+        os.remove(labels_path + ".txt")
+        print("Labels downloaded.")
+
+    with open(labels_path, "r") as f:
+        imagenet_classes = json.load(f)
+
+    onnx_session = ort.InferenceSession(model_path, providers=['CPUExecutionProvider'])
+    print(f"ONNX model loaded: {len(imagenet_classes)} classes")
+
+
+def _preprocess_image(img: Image.Image) -> np.ndarray:
+    """Preprocess image for MobileNetV2: resize, normalize, NCHW format."""
+    img = img.resize((224, 224))
+    img_array = np.array(img).astype(np.float32) / 255.0
+    # Normalize with ImageNet mean/std
+    mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+    std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+    img_array = (img_array - mean) / std
+    # HWC -> NCHW
+    img_array = np.transpose(img_array, (2, 0, 1))
+    return np.expand_dims(img_array, axis=0)
+
 
 @app.post("/category3/predict-image")
 async def predict_image(file: UploadFile = File(...)):
-    """Simple Image Classification (Module 3)."""
-    if cv_model is None:
-        raise HTTPException(status_code=503, detail="Image classification model not initialized.")
-        
+    """Image Classification using ONNX Runtime (MobileNetV2)."""
+    if not ONNX_AVAILABLE:
+        raise HTTPException(status_code=503, detail="ONNX Runtime not installed.")
+
+    _load_onnx_model()
+
+    if onnx_session is None:
+        raise HTTPException(status_code=503, detail="Model failed to load.")
+
     try:
         contents = await file.read()
         img = Image.open(io.BytesIO(contents)).convert('RGB')
-        
+
         # Preprocess
-        batch = preprocess_img(img).unsqueeze(0)
-        
-        # Predict
-        with torch.no_grad():
-            prediction = cv_model(batch).squeeze(0).softmax(0)
-            
-        # Get top 5
-        top5_prob, top5_catid = torch.topk(prediction, 5)
-        
+        input_tensor = _preprocess_image(img)
+
+        # Run inference
+        input_name = onnx_session.get_inputs()[0].name
+        output = onnx_session.run(None, {input_name: input_tensor})[0]
+
+        # Softmax
+        exp_scores = np.exp(output[0] - np.max(output[0]))
+        probs = exp_scores / np.sum(exp_scores)
+
+        # Top 5
+        top5_idx = np.argsort(probs)[-5:][::-1]
+
         results = {}
-        for i in range(5):
-            results[imagenet_classes[top5_catid[i]]] = float(top5_prob[i])
-            
-        top_class = imagenet_classes[top5_catid[0]]
-        top_prob = float(top5_prob[0])
-        
+        for idx in top5_idx:
+            results[imagenet_classes[idx]] = float(probs[idx])
+
+        top_class = imagenet_classes[top5_idx[0]]
+        top_prob = float(probs[top5_idx[0]])
+
         return {
             "prediction": top_class,
             "confidence": top_prob,
