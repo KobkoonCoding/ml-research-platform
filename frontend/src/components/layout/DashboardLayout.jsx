@@ -3,13 +3,10 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Sidebar from './Sidebar'
 import ForensicStepIndicator from './ForensicStepIndicator'
-import ParticleField from '../three/ParticleField'
 import { useApp } from '../../context/AppContext'
-import { useTheme } from '../../context/ThemeContext'
 
 export default function DashboardLayout() {
   const { isLoaded } = useApp()
-  const { theme } = useTheme()
   const location = useLocation()
   const isForensic = location.pathname.startsWith('/forensic')
   const isELM = location.pathname.startsWith('/elm-studio')
@@ -28,8 +25,6 @@ export default function DashboardLayout() {
 
   return (
     <div className="min-h-screen flex">
-      {/* 3D Background (subtle on dashboard pages) */}
-      <ParticleField intensity="subtle" isDark={theme === 'dark'} />
 
       {/* Sidebar */}
       <Sidebar />

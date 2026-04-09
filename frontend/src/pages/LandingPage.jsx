@@ -1,13 +1,11 @@
-import React, { Suspense, lazy, useRef, useState } from 'react'
+import React, { useRef, useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, useInView, useScroll, useTransform, useMotionTemplate, useMotionValue, AnimatePresence } from 'framer-motion'
 import {
-  Zap, ArrowRight, BrainCircuit, Database, Cpu, Moon, Sun,
+  Zap, ArrowRight, BrainCircuit, Database, Cpu,
   MonitorPlay, Activity, FileCheck2, Beaker, GraduationCap, ShieldCheck, X, Globe
 } from 'lucide-react'
-import { useTheme } from '../context/ThemeContext'
 
-const Spline = lazy(() => import('@splinetool/react-spline'))
 
 /* ═══════════════════════════════════════════════════════════════
    MODULE DATA
@@ -312,9 +310,17 @@ function InteractiveModuleCard({ module, index }) {
    ══════════════════════════════════════════════════════════════ */
 
 export default function LandingPage() {
-  const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
   const [showModuleModal, setShowModuleModal] = useState(false)
+
+  // Force dark theme on landing page, restore on unmount
+  useEffect(() => {
+    const prev = document.documentElement.getAttribute('data-theme')
+    document.documentElement.setAttribute('data-theme', 'dark')
+    return () => {
+      if (prev) document.documentElement.setAttribute('data-theme', prev)
+    }
+  }, [])
 
   // Custom Parallax Scroll hooks
   const { scrollY } = useScroll()
@@ -343,40 +349,16 @@ export default function LandingPage() {
           <Zap className="w-5 h-5 text-primary" />
           NEXUS
         </motion.div>
-        <motion.button
-          initial={{ opacity: 0, x: 20 }} 
-          animate={{ opacity: 1, x: 0 }} 
-          transition={{ duration: 0.5 }}
-          onClick={toggleTheme}
-          className="w-11 h-11 rounded-full border border-white/15 bg-white/5 backdrop-blur-sm flex items-center justify-center hover:bg-white/10 hover:scale-105 active:scale-95 transition-all"
-          aria-label="Toggle theme"
-        >
-          {theme === 'dark' ? <Sun className="w-4.5 h-4.5 text-white/80" /> : <Moon className="w-4.5 h-4.5 text-white/80" />}
-        </motion.button>
       </nav>
 
       <main className="relative z-10 overflow-hidden">
 
-        {/* ═══════════════════════════════════════════════════════
-            GLOBAL FIXED BACKGROUND SPLINE
-            ══════════════════════════════════════════════════════ */}
-        <div className="fixed inset-0 z-0 opacity-100">
-          <Suspense fallback={null}>
-            <Spline scene="https://prod.spline.design/LZLC7dER5E6CLRis/scene.splinecode" />
-          </Suspense>
-        </div>
 
         {/* ═══════════════════════════════════════════════════════
             SECTION 1 — HERO
             ══════════════════════════════════════════════════════ */}
         <section className="relative z-10 h-[100svh] overflow-hidden bg-[#050505]">
 
-          {/* Spline — absolute full-screen background */}
-          <div className="absolute inset-0 pointer-events-auto">
-            <Suspense fallback={null}>
-              <Spline scene="https://prod.spline.design/pNfy02-sBsWBu8R3/scene.splinecode" />
-            </Suspense>
-          </div>
 
           {/* Dark overlay so text is readable over the wave */}
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/20 to-black/80 pointer-events-none z-10" />
@@ -562,7 +544,7 @@ export default function LandingPage() {
                 </motion.div>
               </motion.div>
 
-              {/* RIGHT: Robot Spline (sticky, sliding vertically + fade) */}
+              {/* RIGHT: Robot container (sticky, sliding vertically + fade) */}
               <motion.div 
                 style={{ opacity: robotOpacity, y: robotY, willChange: 'opacity, transform' }}
                 className="w-full lg:w-[45%] h-[500px] lg:h-auto lg:sticky lg:top-24 rounded-[3rem] border border-white/5 overflow-hidden pointer-events-auto relative shadow-[0_0_100px_rgba(0,0,0,0.5)]"
@@ -570,11 +552,6 @@ export default function LandingPage() {
                 <div className="absolute inset-0 bg-gradient-to-br from-[#111] to-black" />
                 <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.1)_1px,transparent_1px)]" style={{ backgroundSize: '24px 24px' }} />
                 
-                <div className="absolute inset-0 z-10">
-                  <Suspense fallback={null}>
-                    <Spline scene="https://prod.spline.design/aTL6-pdugzBTCP3t/scene.splinecode" />
-                  </Suspense>
-                </div>
                 {/* Sleek edge lighting on container */}
                 <div className="absolute inset-0 rounded-[3rem] border border-white/5 pointer-events-none z-20" />
                 <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#050505] to-transparent pointer-events-none z-20" />
