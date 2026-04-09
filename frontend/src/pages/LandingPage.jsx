@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react'
+import React, { Suspense, lazy, useRef, useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, useInView, useScroll, useTransform, useMotionTemplate, useMotionValue, AnimatePresence } from 'framer-motion'
 import {
@@ -6,6 +6,7 @@ import {
   MonitorPlay, Activity, FileCheck2, Beaker, GraduationCap, ShieldCheck, X, Globe
 } from 'lucide-react'
 
+const Spline = lazy(() => import('@splinetool/react-spline'))
 
 /* ═══════════════════════════════════════════════════════════════
    MODULE DATA
@@ -359,6 +360,12 @@ export default function LandingPage() {
             ══════════════════════════════════════════════════════ */}
         <section className="relative z-10 h-[100svh] overflow-hidden bg-[#050505]">
 
+          {/* Spline — absolute full-screen background */}
+          <div className="absolute inset-0 pointer-events-auto">
+            <Suspense fallback={null}>
+              <Spline scene="https://prod.spline.design/pNfy02-sBsWBu8R3/scene.splinecode" />
+            </Suspense>
+          </div>
 
           {/* Dark overlay so text is readable over the wave */}
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/20 to-black/80 pointer-events-none z-10" />
@@ -551,7 +558,12 @@ export default function LandingPage() {
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-[#111] to-black" />
                 <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.1)_1px,transparent_1px)]" style={{ backgroundSize: '24px 24px' }} />
-                
+
+                <div className="absolute inset-0 z-10">
+                  <Suspense fallback={null}>
+                    <Spline scene="https://prod.spline.design/aTL6-pdugzBTCP3t/scene.splinecode" />
+                  </Suspense>
+                </div>
                 {/* Sleek edge lighting on container */}
                 <div className="absolute inset-0 rounded-[3rem] border border-white/5 pointer-events-none z-20" />
                 <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#050505] to-transparent pointer-events-none z-20" />
