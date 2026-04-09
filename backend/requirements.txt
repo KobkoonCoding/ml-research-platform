@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+pandas
+numpy
+scikit-learn
+imbalanced-learn
+python-multipart
+scipy
+openpyxl
+torch
+torchvision
