@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, Suspense } from 'react'
+import React, { useRef, useMemo, useState, useEffect, Suspense } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
@@ -30,10 +30,12 @@ function Particles({ count = 1500, isDark = true }) {
   }, [count])
 
   useFrame((state) => {
-    if (!mesh.current) return
+    if (!mesh.current || document.hidden) return
     const time = state.clock.elapsedTime
     const posArr = mesh.current.geometry.attributes.position.array
-    for (let i = 0; i < count; i++) {
+    // Update only every 3rd particle per frame for performance
+    const offset = Math.floor(time * 60) % 3
+    for (let i = offset; i < count; i += 3) {
       const i3 = i * 3
       posArr[i3 + 1] += Math.sin(time * 0.3 + i * 0.01) * 0.002
       posArr[i3] += Math.cos(time * 0.2 + i * 0.015) * 0.001
@@ -65,7 +67,7 @@ function FloatingOrbs({ isDark = true }) {
   const group = useRef()
 
   useFrame((state) => {
-    if (!group.current) return
+    if (!group.current || document.hidden) return
     const t = state.clock.elapsedTime
     group.current.rotation.y = t * 0.05
     group.current.children.forEach((child, i) => {
@@ -125,9 +127,8 @@ function ConnectionLines({ isDark = true }) {
   }, [])
 
   useFrame((state) => {
-    if (linesRef.current) {
-      linesRef.current.rotation.y = state.clock.elapsedTime * 0.015
-    }
+    if (!linesRef.current || document.hidden) return
+    linesRef.current.rotation.y = state.clock.elapsedTime * 0.015
   })
 
   return (
@@ -156,13 +157,22 @@ function Scene({ count, isDark }) {
 }
 
 export default function ParticleField({ intensity = 'normal', isDark = true }) {
-  const count = intensity === 'hero' ? 2000 : intensity === 'subtle' ? 800 : 1500
+  const count = intensity === 'hero' ? 800 : intensity === 'subtle' ? 300 : 600
+
+  // Pause canvas when tab is hidden
+  const [visible, setVisible] = useState(true)
+  useEffect(() => {
+    const handler = () => setVisible(!document.hidden)
+    document.addEventListener('visibilitychange', handler)
+    return () => document.removeEventListener('visibilitychange', handler)
+  }, [])
 
   return (
     <div className="three-canvas-wrapper">
       <Canvas
         camera={{ position: [0, 0, 8], fov: 60 }}
-        dpr={[1, 1.5]}
+        dpr={1}
+        frameloop={visible ? 'always' : 'never'}
         gl={{ antialias: false, alpha: true, powerPreference: 'high-performance' }}
         style={{ background: 'transparent' }}
       >

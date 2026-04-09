@@ -323,6 +323,10 @@ export default function LandingPage() {
   const robotOpacity = useTransform(scrollY, [300, 700, 1500, 2000], [0, 1, 1, 0])
   const robotY = useTransform(scrollY, [300, 700], [100, 0])
 
+  // Lazy-load Robot Spline only when section is near viewport
+  const robotRef = useRef(null)
+  const robotInView = useInView(robotRef, { once: true, margin: '200px' })
+
   return (
     <div className="relative font-sans bg-[#050505] text-white selection:bg-primary/30" data-theme="dark">
 
@@ -357,14 +361,7 @@ export default function LandingPage() {
 
       <main className="relative z-10 overflow-hidden">
 
-        {/* ═══════════════════════════════════════════════════════
-            GLOBAL FIXED BACKGROUND SPLINE
-            ══════════════════════════════════════════════════════ */}
-        <div className="fixed inset-0 z-0 opacity-100">
-          <Suspense fallback={null}>
-            <Spline scene="https://prod.spline.design/LZLC7dER5E6CLRis/scene.splinecode" />
-          </Suspense>
-        </div>
+        {/* Global background removed — was a full Spline 3D scene running 24/7 causing GPU overheat */}
 
         {/* ═══════════════════════════════════════════════════════
             SECTION 1 — HERO
@@ -562,18 +559,21 @@ export default function LandingPage() {
                 </motion.div>
               </motion.div>
 
-              {/* RIGHT: Robot Spline (sticky, sliding vertically + fade) */}
-              <motion.div 
+              {/* RIGHT: Robot Spline (sticky, sliding vertically + fade) — lazy loaded */}
+              <motion.div
+                ref={robotRef}
                 style={{ opacity: robotOpacity, y: robotY, willChange: 'opacity, transform' }}
                 className="w-full lg:w-[45%] h-[500px] lg:h-auto lg:sticky lg:top-24 rounded-[3rem] border border-white/5 overflow-hidden pointer-events-auto relative shadow-[0_0_100px_rgba(0,0,0,0.5)]"
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-[#111] to-black" />
                 <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.1)_1px,transparent_1px)]" style={{ backgroundSize: '24px 24px' }} />
-                
+
                 <div className="absolute inset-0 z-10">
-                  <Suspense fallback={null}>
-                    <Spline scene="https://prod.spline.design/aTL6-pdugzBTCP3t/scene.splinecode" />
-                  </Suspense>
+                  {robotInView && (
+                    <Suspense fallback={null}>
+                      <Spline scene="https://prod.spline.design/aTL6-pdugzBTCP3t/scene.splinecode" />
+                    </Suspense>
+                  )}
                 </div>
                 {/* Sleek edge lighting on container */}
                 <div className="absolute inset-0 rounded-[3rem] border border-white/5 pointer-events-none z-20" />

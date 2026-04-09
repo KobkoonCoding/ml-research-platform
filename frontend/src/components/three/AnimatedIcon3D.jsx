@@ -1,4 +1,4 @@
-import React, { useRef } from 'react'
+import React, { useRef, useState, useEffect } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Float, MeshDistortMaterial } from '@react-three/drei'
 
@@ -13,7 +13,7 @@ function GemMesh({ shape, color, speed }) {
   const meshRef = useRef()
 
   useFrame((state) => {
-    if (!meshRef.current) return
+    if (!meshRef.current || document.hidden) return
     const t = state.clock.elapsedTime * speed
     meshRef.current.rotation.y = t * 0.4
     meshRef.current.rotation.x = Math.sin(t * 0.3) * 0.2
@@ -48,11 +48,19 @@ export default function AnimatedIcon3D({
   size = 60,
   speed = 1,
 }) {
+  const [visible, setVisible] = useState(true)
+  useEffect(() => {
+    const handler = () => setVisible(!document.hidden)
+    document.addEventListener('visibilitychange', handler)
+    return () => document.removeEventListener('visibilitychange', handler)
+  }, [])
+
   return (
     <div style={{ width: size, height: size, display: 'inline-block' }}>
       <Canvas
-        dpr={[1, 1.5]}
-        gl={{ alpha: true, antialias: true }}
+        dpr={1}
+        frameloop={visible ? 'always' : 'never'}
+        gl={{ alpha: true, antialias: false }}
         style={{ background: 'transparent' }}
         shadows={false}
       >
