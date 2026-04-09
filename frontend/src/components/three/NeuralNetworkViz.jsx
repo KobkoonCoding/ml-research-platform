@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useState, useEffect } from 'react'
+import React, { useRef, useMemo } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Float, MeshDistortMaterial, Line } from '@react-three/drei'
 import * as THREE from 'three'
@@ -15,7 +15,6 @@ function layerPositions(count, x) {
 function Node({ position, color, isTraining, index }) {
   const ref = useRef()
   useFrame(({ clock }) => {
-    if (!ref.current || document.hidden) return
     const t = clock.getElapsedTime()
     const bob = Math.sin(t * 0.8 + index * 1.2) * 0.08
     ref.current.position.y = position[1] + bob
@@ -44,11 +43,12 @@ function Node({ position, color, isTraining, index }) {
 function Connections({ from, to, color, isTraining }) {
   const ref = useRef()
   useFrame(({ clock }) => {
-    if (!ref.current || document.hidden) return
-    const opacity = isTraining
-      ? 0.3 + Math.sin(clock.getElapsedTime() * 5) * 0.2
-      : 0.15
-    ref.current.material.opacity = opacity
+    if (ref.current) {
+      const opacity = isTraining
+        ? 0.3 + Math.sin(clock.getElapsedTime() * 5) * 0.2
+        : 0.15
+      ref.current.material.opacity = opacity
+    }
   })
   const points = useMemo(() => {
     const pts = []
@@ -104,18 +104,10 @@ export default function NeuralNetworkViz({
   isTraining = false,
   height = 200,
 }) {
-  const [visible, setVisible] = useState(true)
-  useEffect(() => {
-    const handler = () => setVisible(!document.hidden)
-    document.addEventListener('visibilitychange', handler)
-    return () => document.removeEventListener('visibilitychange', handler)
-  }, [])
-
   return (
     <Canvas
       style={{ height, width: '100%', background: 'transparent' }}
-      dpr={1}
-      frameloop={visible ? 'always' : 'never'}
+      dpr={[1, 1.5]}
       camera={{ position: [0, 0, 8], fov: 50 }}
     >
       <Scene
