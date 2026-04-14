@@ -62,10 +62,10 @@ const CATEGORIES = [
     icon: Table2,
     color: '#F59E0B',
     colorClass: 'warning',
-    status: 'live',
-    liveModels: 3,
+    status: 'coming-soon',
+    liveModels: 0,
     totalModels: 3,
-    modelCount: '3 models available',
+    modelCount: '3 models coming soon',
     path: '/deep-learning/tabular',
   },
 ]

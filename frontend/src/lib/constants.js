@@ -29,7 +29,7 @@ export const NAV_SECTIONS = [
       { id: 'r-imgcls', label: 'Image Classification', path: '/deep-learning/image-classification', icon: 'ScanEye' },
       { id: 'r-medical', label: 'Medical Imaging', path: '/deep-learning/medical-imaging', icon: 'Stethoscope' },
       { id: 'r-objdet', label: 'Object Detection', path: '/deep-learning/object-detection', icon: 'Target' },
-      { id: 'r-tabular', label: 'Table Data', path: '/deep-learning/tabular', icon: 'Table2' },
+      { id: 'r-tabular', label: 'Table Data', path: '/deep-learning/tabular', icon: 'Table2', comingSoon: true },
     ]
   },
   {
