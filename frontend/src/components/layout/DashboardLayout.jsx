@@ -30,8 +30,8 @@ export default function DashboardLayout() {
       <Sidebar />
 
       {/* Main Content */}
-      <main className="flex-1 ml-0 md:ml-[260px] min-h-screen relative z-10 transition-all duration-300">
-        <div className="max-w-[1400px] mx-auto px-4 md:px-8 py-6 md:py-8 pb-24 md:pb-8">
+      <main className="flex-1 ml-0 md:ml-[260px] min-h-screen relative z-10 transition-all duration-300 pt-14 md:pt-0">
+        <div className="max-w-[1400px] mx-auto px-4 md:px-8 py-6 md:py-8">
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}

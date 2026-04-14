@@ -10,7 +10,11 @@ import DashboardLayout from './components/layout/DashboardLayout'
 import LandingPage from './pages/LandingPage'
 import DocsPage from './pages/DocsPage'
 import AboutPage from './pages/AboutPage'
-import FutureWorkPage from './pages/FutureWorkPage'
+import ModelHubPage from './pages/ModelHubPage'
+import ImageClassificationPage from './pages/ImageClassificationPage'
+import MedicalImagingPage from './pages/MedicalImagingPage'
+import ObjectDetectionPage from './pages/ObjectDetectionPage'
+import TabularClassificationPage from './pages/TabularClassificationPage'
 import PreprocessPage from './components/dashboard/PreprocessPage'
 
 // Dashboard Pages
@@ -56,16 +60,20 @@ function App() {
               <Route path="predict" element={<ELMPredictPage />} />
             </Route>
 
-            {/* MODULE 3: DEEP LEARNING (renamed from research-nexus) */}
+            {/* MODULE 3: AI MODEL HUB */}
             <Route path="/deep-learning" element={<DashboardLayout />}>
-              <Route index element={<Navigate to="/deep-learning/vision" replace />} />
-              <Route path="vision" element={<FutureWorkPage module="research" />} />
-              <Route path="health" element={<Placeholder title="Health Pulse" />} />
+              <Route index element={<ModelHubPage />} />
+              <Route path="image-classification" element={<ImageClassificationPage />} />
+              <Route path="medical-imaging" element={<MedicalImagingPage />} />
+              <Route path="object-detection" element={<ObjectDetectionPage />} />
+              <Route path="tabular" element={<TabularClassificationPage />} />
             </Route>
 
             {/* Legacy redirects for old paths */}
             <Route path="/neural-engine/*" element={<Navigate to="/elm-studio" replace />} />
             <Route path="/research-nexus/*" element={<Navigate to="/deep-learning" replace />} />
+            <Route path="/deep-learning/vision" element={<Navigate to="/deep-learning/image-classification" replace />} />
+            <Route path="/deep-learning/health" element={<Navigate to="/deep-learning/medical-imaging" replace />} />
 
             <Route path="/docs" element={<DashboardLayout />}>
               <Route index element={<DocsPage />} />

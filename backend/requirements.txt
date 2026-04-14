@@ -7,5 +7,6 @@ imbalanced-learn
 python-multipart
 scipy
 openpyxl
-onnxruntime
+torch
+torchvision
 Pillow

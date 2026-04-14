@@ -9,6 +9,24 @@
     <meta name="keywords" content="machine learning, data science, EDA, preprocessing, ELM, neural network, data analysis" />
     <meta property="og:title" content="ML Research Platform" />
     <meta property="og:description" content="End-to-end machine learning research platform with 3D visualizations" />
+    <!-- Blocking theme bootstrap — runs BEFORE React renders to prevent flash of wrong theme.
+         Must match THEME_KEY in src/lib/constants.js and ThemeContext default. -->
+    <script>
+      (function() {
+        try {
+          // One-time migration: clear the legacy key so all returning users
+          // get the new dark-by-default behavior on next visit.
+          localStorage.removeItem('mlplatform_theme');
+          var saved = localStorage.getItem('mlplatform_theme_v2');
+          var theme = saved === 'light' ? 'light' : 'dark';
+          var root = document.documentElement;
+          root.setAttribute('data-theme', theme);
+          root.classList.remove('light', 'dark');
+          root.classList.add(theme);
+          root.style.colorScheme = theme;
+        } catch (e) {}
+      })();
+    </script>
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
   </head>
   <body>

@@ -31,3 +31,7 @@ Thumbs.db
 
 # Claude
 .claude/
+.agents/
+
+# HF Space (separate git repo, deployed independently)
+hf-space/

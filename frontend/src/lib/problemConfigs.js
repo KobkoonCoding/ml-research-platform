@@ -1,0 +1,311 @@
+import {
+  Globe, Utensils, Bird,
+  Stethoscope, ScanEye, Brain,
+  Target, PersonStanding, Box,
+  HeartPulse, Ship, Wine
+} from 'lucide-react'
+
+// ── Shared Animation Variants ──
+export const fadeUp = {
+  hidden: { opacity: 0, y: 30 },
+  visible: { opacity: 1, y: 0 }
+}
+
+export const stagger = {
+  visible: { transition: { staggerChildren: 0.12 } }
+}
+
+// ── Image Classification ──
+export const IMAGE_CLASSIFICATION_PROBLEMS = [
+  {
+    id: 'imagenet-1000',
+    label: 'General (ImageNet)',
+    description: 'Classify images across 1,000 everyday object categories',
+    icon: Globe,
+    status: 'live',
+    endpoint: '/category3/predict-image',
+    modelKey: 'imagenet',
+    model: 'EfficientNetV2-S',
+    modelInfo: {
+      architecture: 'EfficientNetV2-S',
+      framework: 'PyTorch',
+      'Top-1 Accuracy': '83.9%',
+      'Top-5 Accuracy': '96.7%',
+      parameters: '21.5M',
+      dataset: 'ImageNet-1K',
+    },
+    sampleImages: [
+      { label: 'Dog', url: '/samples/dog.jpg' },
+      { label: 'Cat', url: '/samples/cat.jpg' },
+      { label: 'Car', url: '/samples/car.jpg' },
+      { label: 'Flower', url: '/samples/flower.jpg' },
+    ],
+  },
+  {
+    id: 'food-101',
+    label: 'Food Recognition',
+    description: 'Identify 101 food categories from dish photos',
+    icon: Utensils,
+    status: 'live',
+    endpoint: '/category3/predict-food',
+    modelKey: 'food',
+    model: 'ViT-Base (nateraw/food)',
+    modelInfo: {
+      architecture: 'ViT-Base/16',
+      framework: 'HuggingFace',
+      'Top-1 Accuracy': '89.1%',
+      'Top-5 Accuracy': '98.6%',
+      parameters: '86M',
+      dataset: 'Food-101',
+    },
+    sampleImages: [
+      { label: 'Pizza', url: '/samples/pizza.jpg' },
+      { label: 'Hamburger', url: '/samples/hamburger.jpg' },
+      { label: 'Sushi', url: '/samples/sushi.jpg' },
+      { label: 'Caesar Salad', url: '/samples/caesar_salad.jpg' },
+    ],
+  },
+  {
+    id: 'bird-species',
+    label: 'Bird Species',
+    description: 'Classify 525 bird species from field photos',
+    icon: Bird,
+    status: 'live',
+    endpoint: '/category3/predict-bird',
+    modelKey: 'bird',
+    model: 'EfficientNet-B2 (dennisjooo)',
+    modelInfo: {
+      architecture: 'EfficientNet-B2',
+      framework: 'HuggingFace',
+      'Top-1 Accuracy': '99.12%',
+      'F1 Score': '0.991',
+      parameters: '9.2M',
+      dataset: 'Birds-525',
+    },
+    sampleImages: [
+      { label: 'Eagle', url: '/samples/eagle.jpg' },
+      { label: 'Owl', url: '/samples/owl.jpg' },
+      { label: 'Parrot', url: '/samples/parrot.jpg' },
+      { label: 'Peacock', url: '/samples/peacock.jpg' },
+    ],
+  },
+]
+
+// ── Medical Imaging ──
+export const MEDICAL_IMAGING_PROBLEMS = [
+  {
+    id: 'xray-pneumonia',
+    label: 'Chest X-ray',
+    description: 'Pattern-matching hints for 18 chest pathologies. Research tool — not a diagnosis.',
+    icon: Stethoscope,
+    status: 'live',
+    outputType: 'multi-label',
+    endpoint: '/medical/predict-xray',
+    modelKey: 'xray',
+    model: 'DenseNet121-all (torchxrayvision)',
+    modelInfo: {
+      architecture: 'DenseNet-121',
+      framework: 'torchxrayvision',
+      'Pneumonia AUC': '0.86',
+      'Mean AUC (18 path.)': '0.82',
+      'Clinical grade': 'Research only',
+      parameters: '8M',
+      dataset: 'NIH + CheXpert + MIMIC + PadChest + RSNA',
+    },
+    sampleImages: [
+      { label: 'Normal', url: '/samples/xray-normal.jpg' },
+      { label: 'Pneumonia', url: '/samples/xray-pneumonia.jpg' },
+    ],
+  },
+  {
+    id: 'skin-lesion',
+    label: 'Skin Lesion',
+    description: 'Classify 7 dermoscopic lesion types — melanoma, basal cell carcinoma, nevi, keratoses — with attention heatmap. Research only.',
+    icon: ScanEye,
+    status: 'live',
+    outputType: 'multi-class',
+    endpoint: '/medical/predict-skin-lesion',
+    modelKey: 'skin',
+    model: 'ViT-base (Anwarkh1/Skin_Cancer)',
+    modelInfo: {
+      architecture: 'ViT-Base/16',
+      framework: 'HuggingFace transformers',
+      classes: '7 lesion categories',
+      'Clinical grade': 'Research only',
+      parameters: '86M',
+      dataset: 'ISIC / HAM10000 (dermoscopy)',
+      license: 'Apache-2.0',
+    },
+    sampleImages: [
+      { label: 'Melanoma', url: '/samples/skin-melanoma.jpg' },
+      { label: 'Nevus', url: '/samples/skin-nevus.jpg' },
+      { label: 'BCC', url: '/samples/skin-bcc.jpg' },
+    ],
+  },
+  {
+    id: 'brain-tumor-mri',
+    label: 'Brain Tumor MRI',
+    description: 'Classify brain MRI slices — glioma, meningioma, pituitary, or no tumor — with attention rollout. Research only.',
+    icon: Brain,
+    status: 'live',
+    outputType: 'multi-class',
+    endpoint: '/medical/predict-brain-tumor',
+    modelKey: 'brain',
+    model: 'ViT-base (Devarshi/Brain_Tumor)',
+    modelInfo: {
+      architecture: 'ViT-Base/16',
+      framework: 'HuggingFace transformers',
+      classes: '4 (glioma / meningioma / pituitary / no-tumor)',
+      'Clinical grade': 'Research only',
+      parameters: '86M',
+      dataset: 'Kaggle Brain Tumor MRI',
+      license: 'Apache-2.0',
+    },
+    sampleImages: [
+      { label: 'Glioma', url: '/samples/brain-glioma.jpg' },
+      { label: 'Meningioma', url: '/samples/brain-meningioma.jpg' },
+      { label: 'Pituitary', url: '/samples/brain-pituitary.jpg' },
+      { label: 'No Tumor', url: '/samples/brain-no-tumor.jpg' },
+    ],
+  },
+]
+
+// ── Object Detection ──
+export const OBJECT_DETECTION_PROBLEMS = [
+  {
+    id: 'animal-detection',
+    label: 'Animal Detection',
+    description: 'Detect and localize animals with bounding boxes',
+    icon: Target,
+    status: 'live',
+    endpoint: '/detection/predict-animals',
+    modelKey: 'yolo',
+    model: 'YOLOv8n (ultralytics)',
+    modelInfo: {
+      architecture: 'YOLOv8n',
+      framework: 'Ultralytics',
+      'mAP 50-95': '37.3',
+      'mAP 50': '52.9',
+      parameters: '3.2M',
+      dataset: 'COCO (10 animal classes)',
+      license: 'AGPL-3.0',
+    },
+    sampleImages: [
+      { label: 'Dog', url: '/samples/dog.jpg' },
+      { label: 'Lion', url: '/samples/lion.jpg' },
+      { label: 'Zebra', url: '/samples/zebra.jpg' },
+      { label: 'Elephant', url: '/samples/elephant.jpg' },
+    ],
+  },
+  {
+    id: 'pose-estimation',
+    label: 'Pose Estimation',
+    description: 'Detect people and draw 17-keypoint skeleton — runners, dancers, yoga poses',
+    icon: PersonStanding,
+    status: 'live',
+    endpoint: '/detection/predict-pose',
+    modelKey: 'pose',
+    model: 'YOLOv8n-pose (ultralytics)',
+    modelInfo: {
+      architecture: 'YOLOv8n-pose',
+      framework: 'Ultralytics',
+      'mAP 50-95 (pose)': '50.4',
+      keypoints: '17 (COCO)',
+      parameters: '3.3M',
+      dataset: 'COCO Keypoints 2017',
+      license: 'AGPL-3.0',
+    },
+    sampleImages: [
+      { label: 'Runner', url: '/samples/pose-runner.jpg' },
+      { label: 'Yoga', url: '/samples/pose-yoga.jpg' },
+      { label: 'Dance', url: '/samples/pose-dance.jpg' },
+      { label: 'Group', url: '/samples/pose-group.jpg' },
+    ],
+  },
+  {
+    id: 'general-objects',
+    label: 'General Objects',
+    description: 'Detect 80 everyday object categories (laptop, cup, phone, chair, etc.) on any photo',
+    icon: Box,
+    status: 'live',
+    endpoint: '/detection/predict-general',
+    modelKey: 'general',
+    model: 'YOLOv8n (ultralytics)',
+    modelInfo: {
+      architecture: 'YOLOv8n',
+      framework: 'Ultralytics',
+      'mAP 50-95': '37.3',
+      'mAP 50': '52.9',
+      parameters: '3.2M',
+      dataset: 'COCO 2017 (80 classes)',
+      license: 'AGPL-3.0',
+    },
+    sampleImages: [
+      { label: 'Street', url: '/samples/street.jpg' },
+      { label: 'Kitchen', url: '/samples/kitchen.jpg' },
+      { label: 'Living Room', url: '/samples/living-room.jpg' },
+      { label: 'Office Desk', url: '/samples/office-desk.jpg' },
+    ],
+  },
+]
+
+// ── Table Data Classification ──
+export const TABULAR_PROBLEMS = [
+  {
+    id: 'titanic-survival',
+    label: 'Titanic Survival',
+    description: 'Predict passenger survival from age, class, sex, fare, family size',
+    icon: Ship,
+    status: 'live',
+    schemaKey: 'titanic-survival',
+    endpoint: '/tabular/predict-titanic',
+    modelKey: 'titanic',
+    model: 'LogisticRegression (Titanic)',
+    modelInfo: {
+      architecture: 'Logistic Regression',
+      framework: 'scikit-learn',
+      preprocessor: 'StandardScaler + OneHotEncoder',
+      features: '7 passenger attributes',
+      dataset: 'Titanic (OpenML, n=1309)',
+      license: 'BSD-3-Clause',
+    },
+  },
+  {
+    id: 'heart-disease',
+    label: 'Heart Disease Risk',
+    description: 'Estimate heart disease risk from clinical features (UCI Cleveland)',
+    icon: HeartPulse,
+    status: 'live',
+    schemaKey: 'heart-disease',
+    endpoint: '/tabular/predict-heart',
+    modelKey: 'heart',
+    model: 'GradientBoosting (UCI Cleveland Heart)',
+    modelInfo: {
+      architecture: 'GradientBoostingClassifier (150 trees · depth 3)',
+      framework: 'scikit-learn',
+      features: '10 clinical attributes',
+      dataset: 'UCI Cleveland Heart Disease (n≈300)',
+      'Clinical grade': 'Research only',
+      license: 'BSD-3-Clause',
+    },
+  },
+  {
+    id: 'wine-quality',
+    label: 'Wine Quality',
+    description: 'Rate red wine quality from chemistry (alcohol, acidity, sulphates, etc.)',
+    icon: Wine,
+    status: 'live',
+    schemaKey: 'wine-quality',
+    endpoint: '/tabular/predict-wine',
+    modelKey: 'wine',
+    model: 'GradientBoosting (Wine Quality — Red)',
+    modelInfo: {
+      architecture: 'GradientBoostingClassifier (200 trees · depth 3)',
+      framework: 'scikit-learn',
+      classes: '3 tiers (low / medium / high)',
+      features: '8 chemistry attributes',
+      dataset: 'UCI Wine Quality — Red (n=1599)',
+      license: 'BSD-3-Clause',
+    },
+  },
+]

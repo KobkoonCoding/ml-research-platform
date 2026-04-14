@@ -1,7 +1,7 @@
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 export const SESSION_KEY = 'mlplatform_session'
 export const SESSION_EXPIRY_MS = 60 * 60 * 1000 // 1 hour
-export const THEME_KEY = 'mlplatform_theme'
+export const THEME_KEY = 'mlplatform_theme_v2'
 
 export const NAV_SECTIONS = [
   {
@@ -23,10 +23,13 @@ export const NAV_SECTIONS = [
     ]
   },
   {
-    title: 'MODULE 3: DEEP LEARNING',
+    title: 'MODULE 3: AI MODEL HUB',
     items: [
-      { id: 'r-vision', label: 'Vision Lab', path: '/deep-learning/vision', icon: 'ScanEye', premium: true },
-      { id: 'r-health', label: 'Health Pulse', path: '/deep-learning/health', icon: 'HeartPulse' },
+      { id: 'r-hub', label: 'Model Hub', path: '/deep-learning', icon: 'BrainCircuit', premium: true },
+      { id: 'r-imgcls', label: 'Image Classification', path: '/deep-learning/image-classification', icon: 'ScanEye' },
+      { id: 'r-medical', label: 'Medical Imaging', path: '/deep-learning/medical-imaging', icon: 'Stethoscope' },
+      { id: 'r-objdet', label: 'Object Detection', path: '/deep-learning/object-detection', icon: 'Target' },
+      { id: 'r-tabular', label: 'Table Data', path: '/deep-learning/tabular', icon: 'Table2' },
     ]
   },
   {

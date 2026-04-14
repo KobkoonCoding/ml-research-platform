@@ -35,6 +35,10 @@
   --color-text-secondary: #CBD5E1;   /* ~11:1 on #030712, ~8:1 on glass */
   --color-text-muted: #94A3B8;       /* ~7:1 on #030712, ~5:1 on glass */
 
+  /* Border System — theme-aware */
+  --color-border: rgba(255, 255, 255, 0.1);
+  --color-border-subtle: rgba(255, 255, 255, 0.06);
+
   /* Feedback System */
   --color-success: #10B981;
   --color-warning: #F59E0B;
@@ -88,6 +92,9 @@
   --color-text-primary: #0F172A;     /* near-black, excellent readability */
   --color-text-secondary: #334155;   /* ~9:1 contrast on white */
   --color-text-muted: #64748B;       /* ~4.7:1 on white — WCAG AA */
+
+  --color-border: rgba(0, 0, 0, 0.12);
+  --color-border-subtle: rgba(0, 0, 0, 0.06);
 
   --color-success: #059669;          /* darker green for light bg */
   --color-warning: #D97706;          /* darker amber for light bg */
@@ -241,10 +248,14 @@
   background-color: rgba(0, 0, 0, 0.03) !important;
 }
 
-/* Tool card / section backgrounds using inline dark colors */
-:root[data-theme="light"] [style*="rgba(14, 14, 14"] {
-  background: rgba(255, 255, 255, 0.7) !important;
-}
+/* NOTE: Previously there was a rule here that rewrote any inline
+   `background: rgba(14, 14, 14, ...)` to a white background in light mode.
+   That was a blunt hack — it also hit the LandingPage's InteractiveModuleCard
+   (which intentionally uses `rgba(14, 14, 14, 0.7)` because the landing page
+   is always-dark) and turned those cards into washed-out white/gray boxes
+   when the user toggled light mode in a sub-page and returned to `/`.
+   Removed. Components that want a theme-aware surface should use the CSS
+   variables `--color-surface-card` / `--color-surface-glass` directly. */
 
 /* Fix box-shadows that are too dark in light mode */
 :root[data-theme="light"] [style*="box-shadow"][style*="rgba(0,0,0,0.5)"],
@@ -1013,7 +1024,10 @@ header {
   padding: 1.5rem 0;
 }
 
-h1 {
+/* Legacy header h1 — scoped so it doesn't clobber modern page h1 elements.
+   The global rule used `-webkit-text-fill-color: transparent` which overrode
+   every inline `color` style and made h1 text invisible in light mode. */
+.legacy-header h1 {
   font-size: 2.2rem;
   font-weight: 800;
   background: linear-gradient(135deg, #f1f5f9 0%, #94a3b8 100%);
@@ -1882,18 +1896,13 @@ td.cell-missing {
 
 /* ═══════════════════════════════════════════════════════════════
    RESPONSIVE
+   Note: Sidebar visibility is now controlled via Tailwind
+   (md:hidden / hidden md:flex) in Sidebar.jsx. No global overrides.
    ══════════════════════════════════════════════════════════════ */
 
 @media (max-width: 768px) {
-  .sidebar { display: none; }
-  .mobile-nav { display: flex !important; }
-
   .glass-panel {
     padding: 1rem;
-    border-radius: 0.75rem;
+    border-radius: 1rem;
   }
-}
-
-@media (min-width: 769px) {
-  .mobile-nav { display: none !important; }
 }

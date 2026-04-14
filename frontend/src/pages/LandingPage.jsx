@@ -2,9 +2,11 @@ import React, { Suspense, lazy, useRef, useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, useInView, useScroll, useTransform, useMotionTemplate, useMotionValue, AnimatePresence } from 'framer-motion'
 import {
-  Zap, ArrowRight, BrainCircuit, Database, Cpu,
-  MonitorPlay, Activity, FileCheck2, Beaker, GraduationCap, ShieldCheck, X, Globe
+  Zap, ArrowRight, BrainCircuit, Database, Cpu, Sparkles,
+  MonitorPlay, Activity, FileCheck2, Beaker, GraduationCap, ShieldCheck, X
 } from 'lucide-react'
+import { useTheme } from '../context/ThemeContext'
+import DeveloperCard from '../components/landing/DeveloperCard'
 
 const Spline = lazy(() => import('@splinetool/react-spline'))
 
@@ -19,9 +21,10 @@ const modules = [
     title: 'Data Forensic & Cleaning',
     subtitle: 'Step 01',
     tagline: 'Clean, explore, and transform your data',
-    description: 'A dedicated laboratory for automated dataset cleansing, finding anomalies, and treating missing values before any machine learning takes place.',
+    description: 'A dedicated laboratory for automated dataset cleansing, anomaly detection, and missing-value treatment — the essential first step before any ML pipeline.',
     features: ['Auto-detect data quality issues', 'Handle missing values & outliers', 'Encode categories & scale features', 'Visual EDA with interactive charts'],
     bestFor: 'Researchers preparing messy real-world datasets',
+    cta: 'Clean Your Data',
     color: '#6366F1',
     colorRgb: '99, 102, 241',
     path: '/forensic',
@@ -32,10 +35,11 @@ const modules = [
     icon: Cpu,
     title: 'ELM Studio',
     subtitle: 'Step 02',
-    tagline: 'Train blazing-fast neural models',
-    description: 'Extreme Learning Machine training suite. Configure hidden nodes and train blazing fast classification models instantly.',
-    features: ['Extreme Learning Machine with cross-validation', 'Configurable hidden nodes & activation', 'Automatic Min-Max scaling', 'Real-time prediction with probability'],
+    tagline: 'Train models with optimization-backed speed',
+    description: 'Extreme Learning Machine training powered by a proven optimization algorithm with theoretical convergence guarantees. Train classification models in milliseconds — no backpropagation needed.',
+    features: ['Optimization-based ELM with convergence guarantees', 'Configurable hidden nodes & activation', 'Automatic Min-Max scaling', 'Real-time prediction with probability'],
     bestFor: 'Quick prototyping of classification & regression models',
+    cta: 'Train Your Model',
     color: '#f59e0b',
     colorRgb: '245, 158, 11',
     path: '/elm-studio',
@@ -44,12 +48,13 @@ const modules = [
   {
     id: 'deep-learning',
     icon: BrainCircuit,
-    title: 'Deep Learning / Vision',
+    title: 'AI Model Hub',
     subtitle: 'Step 03',
-    tagline: 'Advanced AI for image recognition',
-    description: 'Leverage powerful CNN architectures like EfficientNetV2 to classify images with high confidence probabilities.',
-    features: ['EfficientNetV2 CNN architecture', 'Upload & classify images instantly', 'Confidence scores with top-k predictions'],
-    bestFor: 'Computer vision researchers and image classification tasks',
+    tagline: '12 live models across vision, medical & tabular AI',
+    description: 'A curated collection of 12 pre-trained models — 3 image-classification backbones, 3 medical-imaging tasks, 3 object-detectors, and 3 interactive tabular classifiers. Upload data or move a slider and get instant predictions with heatmaps, bounding boxes, or signed feature contributions.',
+    features: ['Image classification (ImageNet · Food-101 · Birds-525)', 'Medical imaging (X-ray · skin lesion · brain MRI) with attention heatmaps', 'Object detection + pose estimation with bounding boxes', 'Tabular classifiers with live-debounced predictions'],
+    bestFor: 'Researchers exploring pre-trained AI models across domains',
+    cta: 'Try Our Models',
     color: '#F472B6',
     colorRgb: '244, 114, 182',
     path: '/deep-learning',
@@ -66,12 +71,12 @@ const steps = [
   {
     icon: Activity,
     title: '2. Train the Model',
-    desc: 'Configure your model with intuitive controls. ELM trains in milliseconds with cross-validation. See accuracy, confusion matrices, and ROC curves instantly.'
+    desc: 'Configure your model and let our optimization algorithm train it in milliseconds with theoretical convergence guarantees. Evaluate with confusion matrices, ROC curves, and cross-validation.'
   },
   {
     icon: MonitorPlay,
-    title: '3. Run Predictions',
-    desc: 'Enter new data points and get real-time predictions with confidence scores. Export results for your research paper.'
+    title: '3. Explore AI Models',
+    desc: 'Try pre-trained models for image classification, medical imaging, and more. Upload your data and get real-time predictions with confidence scores.'
   }
 ]
 
@@ -291,7 +296,7 @@ function InteractiveModuleCard({ module, index }) {
               <ModuleIllustration type={module.illustration} />
             </div>
             <div className="shrink-0 flex items-center gap-3">
-              <span className="text-sm font-bold text-white/70 group-hover:text-white transition-colors hidden md:block">Access</span>
+              <span className="text-sm font-bold text-white/70 group-hover:text-white transition-colors">{module.cta}</span>
               <div
                 className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center border border-white/10 group-hover:bg-white group-hover:border-white transition-all duration-200"
                 style={{ background: `${module.color}25` }}
@@ -313,13 +318,30 @@ function InteractiveModuleCard({ module, index }) {
 export default function LandingPage() {
   const navigate = useNavigate()
   const [showModuleModal, setShowModuleModal] = useState(false)
+  const { theme } = useTheme()
 
-  // Force dark theme on landing page, restore on unmount
+  // Landing page MUST always render dark because:
+  // 1. It uses a 3D Spline background whose colors are baked in and cannot re-theme
+  // 2. Several cards use `backdrop-blur-sm` + `rgba(14,14,14,0.7)` (30% transparent)
+  //    which would pull the light body background through if `data-theme="light"`,
+  //    making them appear gray/washed-out instead of dark
+  //
+  // Strategy: while mounted, force `data-theme="dark"` on <html>. On unmount,
+  // restore to the ThemeContext's CURRENT theme (via ref, so we never restore a
+  // stale value captured at mount time — that was the bug in the previous attempt).
+  const themeRef = useRef(theme)
+  useEffect(() => { themeRef.current = theme }, [theme])
+
   useEffect(() => {
-    const prev = document.documentElement.getAttribute('data-theme')
-    document.documentElement.setAttribute('data-theme', 'dark')
+    const root = document.documentElement
+    root.setAttribute('data-theme', 'dark')
+    root.classList.remove('light')
+    root.classList.add('dark')
     return () => {
-      if (prev) document.documentElement.setAttribute('data-theme', prev)
+      const restore = themeRef.current || 'dark'
+      root.setAttribute('data-theme', restore)
+      root.classList.remove('light', 'dark')
+      root.classList.add(restore)
     }
   }, [])
 
@@ -384,7 +406,7 @@ export default function LandingPage() {
               >
                 <span className="px-5 py-2 rounded-full border border-white/15 bg-black/40 backdrop-blur-md text-xs font-black uppercase tracking-[0.25em] text-white/80 flex items-center gap-3 shadow-lg">
                   <span className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_10px_#6366F1]" />
-                  Advanced ML Research Platform
+                  Where Mathematics Meets Machine Learning
                 </span>
               </motion.div>
 
@@ -395,9 +417,9 @@ export default function LandingPage() {
                 className="text-[3.5rem] md:text-[5.5rem] lg:text-[7.5rem] xl:text-[8.5rem] font-black tracking-tighter leading-[0.85] text-white mb-6"
                 style={{ fontFamily: 'var(--font-display)', textShadow: '0 10px 50px rgba(0,0,0,0.8)' }}
               >
-                Algorithmic<br />
+                Optimize.<br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-secondary to-pink-400">
-                  Brilliance.
+                  Learn.
                 </span>
               </motion.h1>
 
@@ -408,7 +430,7 @@ export default function LandingPage() {
                 className="text-xl md:text-2xl text-white/90 max-w-2xl mx-auto mb-10 leading-relaxed font-light"
                 style={{ textShadow: '0 4px 20px rgba(0,0,0,1)' }}
               >
-                An interactive environment fusing structural data preparation and extreme learning machine models for unparalleled research speed.
+                A no-code research platform where mathematical optimization powers machine learning — from data cleaning to model training to real-time inference.
               </motion.p>
 
               <motion.div
@@ -424,8 +446,12 @@ export default function LandingPage() {
                   Explore Platform
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </button>
-                <Link to="/docs" className="px-8 py-4 rounded-full border border-white/20 bg-white/5 backdrop-blur-sm text-sm text-white/80 hover:text-white hover:bg-white/10 transition-all font-medium">
-                  Documentation →
+                <Link
+                  to="/deep-learning"
+                  className="group px-8 py-4 rounded-full bg-gradient-to-r from-violet-600 to-pink-500 text-white font-bold text-sm hover:scale-[1.05] transition-transform flex items-center gap-2 shadow-[0_0_30px_rgba(139,92,246,0.3)] hover:shadow-[0_0_50px_rgba(139,92,246,0.5)]"
+                >
+                  <Sparkles className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+                  Try AI Models — No Setup
                 </Link>
               </motion.div>
             </div>
@@ -464,7 +490,7 @@ export default function LandingPage() {
               </h2>
               <div className="w-24 h-1 bg-gradient-to-r from-primary to-transparent mx-auto rounded-full mb-6" />
               <p className="mt-4 text-white/80 text-xl max-w-2xl mx-auto font-light">
-                A research-grade toolkit for end-to-end machine learning — from messy spreadsheets to deployable models.
+                Where mathematical optimization theory powers practical machine learning research.
               </p>
             </motion.div>
 
@@ -487,9 +513,7 @@ export default function LandingPage() {
                     <h3 className="text-2xl font-black tracking-wide">What Is This?</h3>
                   </div>
                   <p className="text-white/80 text-lg leading-relaxed font-light">
-                    Intelligence Nexus is a full-stack ML research platform built with <strong className="text-white font-medium">React</strong> and <strong className="text-white font-medium">FastAPI</strong>.
-                    It provides three independent modules that cover the complete machine learning lifecycle:
-                    data forensic analysis, ELM-based model training, and deep convolutional neural network inference.
+                    NEXUS is built on a simple principle: most machine learning models can be expressed as <strong className="text-white font-medium">optimization problems</strong>. By fusing mathematical optimization with ML, we created a no-code platform that covers the full research lifecycle — data preparation, model training, and AI inference.
                   </p>
                 </motion.div>
 
@@ -502,10 +526,7 @@ export default function LandingPage() {
                     <h3 className="text-2xl font-black tracking-wide">Who Is It For?</h3>
                   </div>
                   <p className="text-white/80 text-lg leading-relaxed font-light">
-                    Designed for <strong className="text-white font-medium">researchers</strong>, <strong className="text-white font-medium">graduate students</strong>, and <strong className="text-white font-medium">data scientists</strong> who
-                    need a streamlined environment to prototype classification models quickly.
-                    Upload your dataset, clean it with automated pipelines, train an Extreme Learning Machine in milliseconds,
-                    and evaluate predictions — all without writing a single line of code.
+                    Built for <strong className="text-white font-medium">researchers</strong>, <strong className="text-white font-medium">professors</strong>, and <strong className="text-white font-medium">students</strong> who want to experiment with ML models without writing code. Whether you are teaching optimization theory or running experiments for a thesis — upload, train, and predict in minutes.
                   </p>
                 </motion.div>
 
@@ -520,19 +541,19 @@ export default function LandingPage() {
                   <ul className="text-white/80 text-[1.05rem] leading-relaxed space-y-4 font-light">
                     <li className="flex items-start gap-4">
                       <span className="w-2 h-2 rounded-full bg-primary mt-2.5 shrink-0 shadow-[0_0_8px_#6366F1]" />
-                      <span><strong className="text-white font-medium">Automated Data Cleaning</strong> — Fill missing values using mean, median, mode, or KNN imputation. Detect outliers via IQR thresholds.</span>
+                      <span><strong className="text-white font-medium">Automated Data Cleaning</strong> — Detect and fix missing values, outliers, and encoding issues with one-click pipelines.</span>
                     </li>
                     <li className="flex items-start gap-4">
                       <span className="w-2 h-2 rounded-full bg-secondary mt-2.5 shrink-0 shadow-[0_0_8px_#06B6D4]" />
-                      <span><strong className="text-white font-medium">ELM Training Engine</strong> — Train feedforward networks with Moore-Penrose pseudo-inverse in under 200ms. No backpropagation needed.</span>
+                      <span><strong className="text-white font-medium">ELM Training Engine</strong> — Train neural networks using a proven optimization algorithm with theoretical convergence guarantees — no backpropagation needed.</span>
                     </li>
                     <li className="flex items-start gap-4">
                       <span className="w-2 h-2 rounded-full bg-accent-warm mt-2.5 shrink-0 shadow-[0_0_8px_#F472B6]" />
-                      <span><strong className="text-white font-medium">Image Classification</strong> — Classify images against 1,000 ImageNet categories using EfficientNetV2-S.</span>
+                      <span><strong className="text-white font-medium">Pre-trained Model Hub</strong> — Explore AI models for image classification, medical imaging (X-ray), and more — with new models added regularly.</span>
                     </li>
                     <li className="flex items-start gap-4">
                       <span className="w-2 h-2 rounded-full bg-pink-400 mt-2.5 shrink-0 shadow-[0_0_8px_#E879F9]" />
-                      <span><strong className="text-white font-medium">Real-time Inference</strong> — Input feature vectors and receive instant class predictions with probabilities.</span>
+                      <span><strong className="text-white font-medium">Real-time Inference</strong> — Input feature vectors or upload images and receive instant predictions with confidence scores.</span>
                     </li>
                   </ul>
                 </motion.div>
@@ -593,7 +614,7 @@ export default function LandingPage() {
               </h2>
               <div className="w-24 h-1 bg-gradient-to-r from-secondary to-transparent mx-auto rounded-full mt-6 mb-6" />
               <p className="text-white/80 text-xl max-w-xl mx-auto font-light">
-                Three independent modules — from raw data to AI predictions.
+                Three integrated modules — each powered by optimization-driven algorithms.
               </p>
             </motion.div>
 
@@ -679,95 +700,7 @@ export default function LandingPage() {
                 <div className="w-24 h-1 bg-gradient-to-r from-primary to-transparent mx-auto rounded-full" />
               </motion.div>
 
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.7, type: 'spring' }}
-                className="p-8 md:p-12 rounded-[2rem] border border-white/10 backdrop-blur-md text-center"
-                style={{ background: 'rgba(255,255,255,0.03)' }}
-              >
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.1, duration: 0.5 }}
-                  className="w-24 h-24 rounded-full mx-auto mb-6 flex items-center justify-center text-2xl font-black text-white"
-                  style={{ background: 'linear-gradient(135deg, #6366F1, #06B6D4)' }}
-                >
-                  KJ
-                </motion.div>
-                <motion.h3
-                  initial={{ opacity: 0, y: 10 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.2, duration: 0.5 }}
-                  className="text-2xl font-black text-white mb-1"
-                >
-                  Dr. Kobkoon Janngam
-                </motion.h3>
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  whileInView={{ opacity: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.3, duration: 0.5 }}
-                  className="text-white/80 text-sm mb-1"
-                >
-                  Proactive Researcher
-                </motion.p>
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  whileInView={{ opacity: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.35, duration: 0.5 }}
-                  className="text-white/70 text-sm mb-6"
-                >
-                  Chiang Mai University
-                </motion.p>
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  whileInView={{ opacity: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.4, duration: 0.5 }}
-                  className="text-white/80 text-base leading-relaxed max-w-lg mx-auto mb-8 font-light"
-                >
-                  Bridging mathematics and machine learning to create accessible research tools for the academic community.
-                </motion.p>
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.5, duration: 0.5 }}
-                  className="flex items-center justify-center gap-4"
-                >
-                  {[
-                    { label: 'FB', href: 'https://facebook.com' },
-                    { label: 'IG', href: 'https://instagram.com' },
-                  ].map((s) => (
-                    <motion.a
-                      key={s.label}
-                      href={s.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      whileHover={{ scale: 1.15, y: -2 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="w-11 h-11 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-xs font-bold text-white/60 hover:text-white hover:border-white/30 hover:bg-white/10 transition-colors"
-                    >
-                      {s.label}
-                    </motion.a>
-                  ))}
-                  <motion.a
-                    href="https://personal-portfolio-pi-murex-30.vercel.app/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    whileHover={{ scale: 1.15, y: -2 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="w-11 h-11 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-white/60 hover:text-white hover:border-white/30 hover:bg-white/10 transition-colors"
-                  >
-                    <Globe className="w-4 h-4" />
-                  </motion.a>
-                </motion.div>
-              </motion.div>
+              <DeveloperCard />
             </div>
           </section>
 
