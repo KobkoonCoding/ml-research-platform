@@ -215,6 +215,21 @@ export default function MedicalImagingPage() {
               maxDimension={1024}
             />
 
+            {/* Attention-rollout info — ViT tasks (skin / brain) */}
+            {isMultiClass && (
+              <div className="mt-4 flex items-center gap-3 p-4 rounded-2xl border bg-primary/5 border-primary/20">
+                <Gauge className="w-4 h-4 text-primary shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-black text-text-primary">
+                    Attention rollout — gradient-free by design
+                  </div>
+                  <div className="text-[10px] text-text-muted">
+                    ViT models read attention weights directly from the forward pass — fast mode is always on, no toggle needed.
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Fast-mode toggle — X-ray only, locked once a result is shown */}
             {selected.id === 'xray-pneumonia' && (() => {
               const locked = !!result || loading
