@@ -16,6 +16,8 @@
     "@splinetool/react-spline": "^4.1.0",
     "@tailwindcss/postcss": "^4.2.2",
     "@tailwindcss/vite": "^4.2.2",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "axios": "^1.13.6",
     "classnames": "^2.5.1",
     "framer-motion": "^12.38.0",
