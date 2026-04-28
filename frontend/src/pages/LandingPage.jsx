@@ -414,7 +414,7 @@ export default function LandingPage() {
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 0.1, type: "spring", damping: 20 }}
-                className="text-[3.5rem] md:text-[5.5rem] lg:text-[7.5rem] xl:text-[8.5rem] font-black tracking-tighter leading-[0.85] text-white mb-6"
+                className="text-[3rem] sm:text-[3.5rem] md:text-[5.5rem] lg:text-[7.5rem] xl:text-[8.5rem] font-black tracking-tighter leading-[0.85] text-white mb-6"
                 style={{ fontFamily: 'var(--font-display)', textShadow: '0 10px 50px rgba(0,0,0,0.8)' }}
               >
                 Optimize.<br />
@@ -427,7 +427,7 @@ export default function LandingPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 0.2 }}
-                className="text-xl md:text-2xl text-white/90 max-w-2xl mx-auto mb-10 leading-relaxed font-light"
+                className="text-base sm:text-xl md:text-2xl text-white/90 max-w-2xl mx-auto mb-8 md:mb-10 leading-relaxed font-light"
                 style={{ textShadow: '0 4px 20px rgba(0,0,0,1)' }}
               >
                 A no-code research platform where mathematical optimization powers machine learning — from data cleaning to model training to real-time inference.
@@ -471,7 +471,7 @@ export default function LandingPage() {
           {/* ═══════════════════════════════════════════════════════
               SECTION 2 — ABOUT PLATFORM + ROBOT
               ══════════════════════════════════════════════════════ */}
-          <section className="relative z-10 px-6 lg:px-12 pt-32 pb-40">
+          <section className="relative z-10 px-6 lg:px-12 pt-20 md:pt-32 pb-24 md:pb-40">
             {/* Re-enable pointer events for inner content container so buttons/cards work */}
             <div className="max-w-[1400px] mx-auto pointer-events-auto">
 
@@ -480,7 +480,7 @@ export default function LandingPage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-100px' }}
               transition={{ duration: 0.7, type: 'spring' }}
-              className="text-center mb-20"
+              className="text-center mb-12 md:mb-20"
             >
               <h2
                 className="text-5xl md:text-6xl lg:text-7xl font-black tracking-tight text-white mb-6"
@@ -505,7 +505,7 @@ export default function LandingPage() {
                 className="w-full lg:w-[55%] flex flex-col gap-8"
               >
                 {/* About block 1 */}
-                <motion.div variants={fadeUp} className="group p-8 rounded-[2rem] border border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent hover:border-white/15 transition-colors duration-500 hover:shadow-2xl hover:bg-white/[0.04]">
+                <motion.div variants={fadeUp} className="group p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent hover:border-white/15 transition-colors duration-500 hover:shadow-2xl hover:bg-white/[0.04]">
                   <div className="flex items-center gap-4 mb-5">
                     <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
                       <Beaker className="w-7 h-7 text-primary" />
@@ -518,7 +518,7 @@ export default function LandingPage() {
                 </motion.div>
 
                 {/* About block 2 */}
-                <motion.div variants={fadeUp} className="group p-8 rounded-[2rem] border border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent hover:border-white/15 transition-colors duration-500 hover:shadow-2xl hover:bg-white/[0.04]">
+                <motion.div variants={fadeUp} className="group p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent hover:border-white/15 transition-colors duration-500 hover:shadow-2xl hover:bg-white/[0.04]">
                   <div className="flex items-center gap-4 mb-5">
                     <div className="w-14 h-14 rounded-2xl bg-secondary/10 border border-secondary/20 flex items-center justify-center group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300">
                       <GraduationCap className="w-7 h-7 text-secondary" />
@@ -531,7 +531,7 @@ export default function LandingPage() {
                 </motion.div>
 
                 {/* About block 3 */}
-                <motion.div variants={fadeUp} className="group p-8 rounded-[2rem] border border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent hover:border-white/15 transition-colors duration-500 hover:shadow-2xl hover:bg-white/[0.04]">
+                <motion.div variants={fadeUp} className="group p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent hover:border-white/15 transition-colors duration-500 hover:shadow-2xl hover:bg-white/[0.04]">
                   <div className="flex items-center gap-4 mb-6">
                     <div className="w-14 h-14 rounded-2xl bg-accent-warm/10 border border-accent-warm/20 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
                       <ShieldCheck className="w-7 h-7 text-accent-warm" />
@@ -596,7 +596,7 @@ export default function LandingPage() {
           {/* ═══════════════════════════════════════════════════════
               SECTION 3 — MODULES
               ══════════════════════════════════════════════════════ */}
-          <section className="relative z-10 px-6 lg:px-12 pt-32 pb-32 border-t border-white/5">
+          <section className="relative z-10 px-6 lg:px-12 py-20 md:py-32 border-t border-white/5">
             <div className="max-w-[1400px] mx-auto pointer-events-auto">
 
             <motion.div
@@ -604,7 +604,7 @@ export default function LandingPage() {
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true, margin: '-100px' }}
               transition={{ duration: 0.6, type: 'spring' }}
-              className="text-center mb-24"
+              className="text-center mb-12 md:mb-24"
             >
               <h2
                 className="text-5xl md:text-6xl lg:text-7xl font-black tracking-tight text-white"
@@ -635,28 +635,28 @@ export default function LandingPage() {
           {/* ═══════════════════════════════════════════════════════
               SECTION 4 — HOW TO USE
               ══════════════════════════════════════════════════════ */}
-          <section className="relative z-10 py-32 px-6 lg:px-12 border-t border-white/5">
+          <section className="relative z-10 py-20 md:py-32 px-6 lg:px-12 border-t border-white/5">
             <div className="max-w-6xl mx-auto pointer-events-auto">
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.6, type: 'spring' }}
-              className="text-center mb-20"
+              className="text-center mb-12 md:mb-20"
             >
               <h2 className="text-4xl md:text-6xl font-black text-white mb-6" style={{ fontFamily: 'var(--font-display)' }}>
                 Operational Flow
               </h2>
               <div className="w-24 h-1 bg-gradient-to-r from-accent-warm to-transparent mx-auto rounded-full mb-6" />
-              <p className="text-white/80 text-xl font-light">From raw data to predictions in three sequential steps.</p>
+              <p className="text-white/80 text-base md:text-xl font-light">From raw data to predictions in three sequential steps.</p>
             </motion.div>
 
-            <motion.div 
+            <motion.div
               variants={staggerContainer}
               initial="hidden"
               whileInView="show"
               viewport={{ once: true }}
-              className="grid grid-cols-1 md:grid-cols-3 gap-8"
+              className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-8"
             >
               {steps.map((step, i) => {
                 const StepIcon = step.icon
@@ -665,16 +665,16 @@ export default function LandingPage() {
                     key={i}
                     variants={fadeUp}
                     whileHover={{ y: -10 }}
-                    className="p-10 rounded-[2rem] border border-white/5 bg-gradient-to-br from-white/[0.04] to-transparent hover:border-white/15 transition-all duration-300 group shadow-lg hover:shadow-2xl"
+                    className="p-6 md:p-10 rounded-[1.5rem] md:rounded-[2rem] border border-white/5 bg-gradient-to-br from-white/[0.04] to-transparent hover:border-white/15 transition-all duration-300 group shadow-lg hover:shadow-2xl"
                   >
-                    <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-8 group-hover:scale-110 group-hover:bg-primary/20 transition-all duration-300">
-                      <StepIcon className="w-6 h-6 text-white/80 group-hover:text-primary transition-colors" />
+                    <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-5 md:mb-8 group-hover:scale-110 group-hover:bg-primary/20 transition-all duration-300">
+                      <StepIcon className="w-5 h-5 md:w-6 md:h-6 text-white/80 group-hover:text-primary transition-colors" />
                     </div>
-                    <div className="text-5xl font-black text-white/8 mb-4 group-hover:text-white/15 transition-colors" style={{ fontFamily: 'var(--font-display)' }}>
+                    <div className="text-4xl md:text-5xl font-black text-white/8 mb-3 md:mb-4 group-hover:text-white/15 transition-colors" style={{ fontFamily: 'var(--font-display)' }}>
                       0{i+1}
                     </div>
-                    <h3 className="text-xl font-bold mb-3 text-white">{step.title}</h3>
-                    <p className="text-white/80 text-base leading-relaxed font-light">{step.desc}</p>
+                    <h3 className="text-lg md:text-xl font-bold mb-2 md:mb-3 text-white">{step.title}</h3>
+                    <p className="text-white/80 text-sm md:text-base leading-relaxed font-light">{step.desc}</p>
                   </motion.div>
                 )
               })}
@@ -685,14 +685,14 @@ export default function LandingPage() {
           {/* ═══════════════════════════════════════════════════════
               SECTION 5 — DEVELOPER
               ══════════════════════════════════════════════════════ */}
-          <section className="relative z-10 py-32 px-6 lg:px-12 border-t border-white/5">
+          <section className="relative z-10 py-20 md:py-32 px-6 lg:px-12 border-t border-white/5">
             <div className="max-w-3xl mx-auto pointer-events-auto">
               <motion.div
                 initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.6, type: 'spring' }}
-                className="text-center mb-16"
+                className="text-center mb-10 md:mb-16"
               >
                 <h2 className="text-4xl md:text-6xl font-black text-white mb-6" style={{ fontFamily: 'var(--font-display)' }}>
                   Meet the Developer
@@ -707,7 +707,7 @@ export default function LandingPage() {
           {/* ═══════════════════════════════════════════════════════
               SECTION 6 — CTA
               ══════════════════════════════════════════════════════ */}
-          <section className="relative z-10 py-32 px-6 border-t border-white/5 text-center overflow-hidden pointer-events-none" style={{ background: 'linear-gradient(to bottom, transparent, rgba(3,3,3,0.8))' }}>
+          <section className="relative z-10 py-20 md:py-32 px-6 border-t border-white/5 text-center overflow-hidden pointer-events-none" style={{ background: 'linear-gradient(to bottom, transparent, rgba(3,3,3,0.8))' }}>
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] h-[80vw] max-w-3xl rounded-full bg-primary/20 blur-[150px] opacity-30 pointer-events-none" />
 
           <motion.div
@@ -717,14 +717,14 @@ export default function LandingPage() {
             transition={{ duration: 0.7, type: 'spring' }}
             className="relative z-10 pointer-events-auto"
           >
-            <h2 className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tight text-white mb-10" style={{ fontFamily: 'var(--font-display)' }}>
+            <h2 className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-black tracking-tight text-white mb-8 md:mb-10" style={{ fontFamily: 'var(--font-display)' }}>
               Ready to <em className="not-italic font-light text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">Compile?</em>
             </h2>
             <motion.button
               onClick={() => setShowModuleModal(true)}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="px-10 py-5 rounded-full bg-white text-black font-black text-lg shadow-[0_0_50px_-15px_rgba(255,255,255,0.8)] hover:shadow-[0_0_80px_-10px_rgba(255,255,255,1)] transition-shadow flex justify-center items-center gap-3 mx-auto group"
+              className="px-8 md:px-10 py-4 md:py-5 rounded-full bg-white text-black font-black text-base md:text-lg shadow-[0_0_50px_-15px_rgba(255,255,255,0.8)] hover:shadow-[0_0_80px_-10px_rgba(255,255,255,1)] transition-shadow flex justify-center items-center gap-3 mx-auto group"
             >
               Initialize System
               <ArrowRight className="w-5 h-5 group-hover:translate-x-2 transition-transform" />
@@ -752,7 +752,7 @@ export default function LandingPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setShowModuleModal(false)}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-6"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6"
             style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(12px)' }}
           >
             <motion.div
@@ -761,20 +761,21 @@ export default function LandingPage() {
               exit={{ opacity: 0, scale: 0.85 }}
               transition={{ type: 'spring', stiffness: 300, damping: 25 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-3xl rounded-[2rem] border border-white/10 p-8 md:p-10"
+              className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-[1.5rem] md:rounded-[2rem] border border-white/10 p-6 md:p-10"
               style={{ background: 'rgba(10,10,10,0.85)', backdropFilter: 'blur(20px)' }}
             >
               <button
                 onClick={() => setShowModuleModal(false)}
-                className="absolute top-5 right-5 w-9 h-9 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+                aria-label="Close"
+                className="absolute top-4 right-4 md:top-5 md:right-5 w-11 h-11 md:w-9 md:h-9 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
-              <h3 className="text-2xl font-black text-white mb-2 text-center" style={{ fontFamily: 'var(--font-display)' }}>
+              <h3 className="text-xl md:text-2xl font-black text-white mb-2 text-center pr-8" style={{ fontFamily: 'var(--font-display)' }}>
                 Select a Module
               </h3>
-              <p className="text-white/70 text-sm text-center mb-8">Choose where to begin your research workflow.</p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <p className="text-white/70 text-xs md:text-sm text-center mb-6 md:mb-8">Choose where to begin your research workflow.</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5">
                 {modules.map((m) => {
                   const Icon = m.icon
                   return (
@@ -783,7 +784,7 @@ export default function LandingPage() {
                       whileHover={{ y: -4, scale: 1.02 }}
                       whileTap={{ scale: 0.97 }}
                       onClick={() => { setShowModuleModal(false); navigate(m.path) }}
-                      className="text-left p-6 rounded-2xl border border-white/10 hover:border-white/25 transition-all duration-200 group"
+                      className="text-left p-5 md:p-6 rounded-2xl border border-white/10 hover:border-white/25 transition-all duration-200 group"
                       style={{ background: `rgba(${m.colorRgb}, 0.06)` }}
                     >
                       <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 border border-white/10" style={{ background: `${m.color}18` }}>
