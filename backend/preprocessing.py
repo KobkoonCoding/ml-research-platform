@@ -95,15 +95,78 @@ def analyze_dataset(df: pd.DataFrame):
             except Exception:
                 pass
     
-    # Correlation matrix for numeric columns
+    # Correlation matrix for numeric columns — Pearson by default, plus
+    # Spearman + Kendall so the frontend can let users switch methods
+    # without a new round-trip. (Pearson assumes linearity + normality;
+    # Spearman handles monotonic non-linear; Kendall is robust on small N.)
     correlation = {}
     if len(numeric_cols) >= 2:
         try:
-            corr_matrix = df[numeric_cols].corr()
+            corr_pearson = df[numeric_cols].corr(method="pearson")
+            corr_spearman = df[numeric_cols].corr(method="spearman")
+            corr_kendall = df[numeric_cols].corr(method="kendall")
             correlation = {
-                "columns": list(corr_matrix.columns),
-                "values": corr_matrix.fillna(0).values.tolist()
+                "columns": list(corr_pearson.columns),
+                "method": "pearson",  # default for backward compat
+                "values": corr_pearson.fillna(0).values.tolist(),
+                "values_pearson":  corr_pearson.fillna(0).values.tolist(),
+                "values_spearman": corr_spearman.fillna(0).values.tolist(),
+                "values_kendall":  corr_kendall.fillna(0).values.tolist(),
             }
+        except Exception:
+            pass
+
+    # ── Per-column distribution stats (skewness, kurtosis) ──
+    # Tells the user whether each numeric feature is normally distributed,
+    # right-skewed, heavy-tailed, etc. — useful before choosing a scaler.
+    distribution_stats = {}
+    for col in numeric_cols:
+        try:
+            col_data = df[col].dropna()
+            if len(col_data) < 3:
+                continue
+            distribution_stats[col] = {
+                "skewness": float(col_data.skew()),
+                "kurtosis": float(col_data.kurt()),  # excess kurtosis (Fisher) — 0 = normal
+                "n": int(col_data.shape[0]),
+            }
+        except Exception:
+            pass
+
+    # ── Categorical association matrix (Cramér's V) ──
+    # Symmetric 0..1 association measure derived from chi-square; complements
+    # the numeric correlation matrix for categorical features.
+    categorical_assoc = {}
+    if len(categorical_cols) >= 2:
+        try:
+            from scipy.stats import chi2_contingency
+            cat_subset = [c for c in categorical_cols if df[c].nunique(dropna=True) <= 50]  # avoid combinatorial blow-up
+            cols = list(cat_subset)
+            n = df.shape[0]
+            matrix = []
+            for c1 in cols:
+                row = []
+                for c2 in cols:
+                    if c1 == c2:
+                        row.append(1.0)
+                        continue
+                    try:
+                        ct = pd.crosstab(df[c1], df[c2])
+                        chi2, _, _, _ = chi2_contingency(ct)
+                        r, k = ct.shape
+                        denom = n * (min(r, k) - 1)
+                        cramers_v = float((chi2 / denom) ** 0.5) if denom > 0 else 0.0
+                        cramers_v = max(0.0, min(1.0, cramers_v))
+                    except Exception:
+                        cramers_v = 0.0
+                    row.append(cramers_v)
+                matrix.append(row)
+            if cols:
+                categorical_assoc = {
+                    "columns": cols,
+                    "values": matrix,
+                    "method": "cramers_v",
+                }
         except Exception:
             pass
     
@@ -244,6 +307,8 @@ def analyze_dataset(df: pd.DataFrame):
         "histograms": histograms,
         "boxplots": boxplots,
         "correlation": correlation,
+        "categorical_assoc": categorical_assoc,
+        "distribution_stats": distribution_stats,
         "insights": insights,
         "summary_statistics": summary_stats,
         "missing_matrix": missing_matrix,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { motion } from 'framer-motion'
 import axios from 'axios'
 import { API_BASE } from '../lib/constants'
@@ -19,6 +19,10 @@ import {
   Activity, ShieldCheck, Upload, ScanEye, Brain, AlertCircle, Zap, Gauge,
   AlertTriangle, Info, HelpCircle, ChevronDown
 } from 'lucide-react'
+
+// ─── Module-level config (hoisted out of component to avoid re-allocation per render) ───
+
+const MAX_FILE_BYTES = 20 * 1024 * 1024 // 20 MB — generous for medical PNG/JPG (DICOM tools usually export ≤ 5 MB)
 
 const PROBLEM_FEATURES = {
   'xray-pneumonia': [
@@ -41,6 +45,57 @@ const PROBLEM_FEATURES = {
   ],
 }
 
+// Per-problem strings (uploadTitle, predictLabel, etc.) — hoisted so we don't
+// re-create the object on every render. Was inline `problemCopy` in component.
+const PROBLEM_COPY = {
+  'xray-pneumonia': {
+    uploadTitle: 'Upload X-ray',
+    predictLabel: 'Analyze X-ray',
+    uploadHint: 'JPG, PNG supported · Chest X-ray images (≤ 20 MB)',
+    resultsTitle: 'X-ray Analysis',
+    tryAgain: 'Analyze Another X-ray',
+    emptyTitle: 'Ready to Analyze',
+    emptyBody: 'Upload a chest X-ray to detect pathologies with attention visualization.',
+  },
+  'skin-lesion': {
+    uploadTitle: 'Upload Dermoscopy Image',
+    predictLabel: 'Classify Lesion',
+    uploadHint: 'JPG, PNG supported · Dermoscopic close-up images (≤ 20 MB)',
+    resultsTitle: 'Skin Lesion Analysis',
+    tryAgain: 'Classify Another Lesion',
+    emptyTitle: 'Ready to Classify',
+    emptyBody: 'Upload a dermoscopy image to identify lesion type with attention heatmap.',
+  },
+  'brain-tumor-mri': {
+    uploadTitle: 'Upload Brain MRI',
+    predictLabel: 'Classify MRI',
+    uploadHint: 'JPG, PNG supported · Brain MRI slices (≤ 20 MB)',
+    resultsTitle: 'Brain Tumor Analysis',
+    tryAgain: 'Classify Another MRI',
+    emptyTitle: 'Ready to Classify',
+    emptyBody: 'Upload a brain MRI to classify glioma, meningioma, pituitary, or no tumor.',
+  },
+}
+
+// Per-task-specific medical disclaimer — centralizes wording so we don't
+// inline it across the file. Adding a new task = add an entry here, no JSX edit.
+const TASK_DISCLAIMERS = {
+  'xray-pneumonia': 'Pattern-matching hints from torchxrayvision (research only). Only a qualified radiologist can diagnose chest X-rays.',
+  'skin-lesion':    'Dermoscopic ViT classifier — research/educational use. A dermatologist must confirm any suspicious lesion.',
+  'brain-tumor-mri':'Brain-MRI ViT classifier — research/educational use. Tumor diagnosis requires a neuro-radiologist + clinical context.',
+}
+
+// Translate axios/fetch errors into a single user-facing message.
+function formatPredictError(err, fallback = 'Analysis failed') {
+  if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return null
+  const status = err?.response?.status
+  const detail = err?.response?.data?.detail
+  if (!err?.response) return 'Network error — backend unreachable.'
+  if (status >= 500) return `Server error (${status}): ${typeof detail === 'string' ? detail : 'unexpected error'}`
+  if (status >= 400) return typeof detail === 'string' ? detail : `Request rejected (${status}).`
+  return fallback
+}
+
 export default function MedicalImagingPage() {
   const [selectedId, setSelectedId] = useState('xray-pneumonia')
   const [image, setImage] = useState(null)
@@ -49,51 +104,28 @@ export default function MedicalImagingPage() {
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
   const [fastMode, setFastMode] = useState(true)
+  const abortRef = useRef(null)
 
   const selected = MEDICAL_IMAGING_PROBLEMS.find(p => p.id === selectedId)
   const isLive = selected?.status === 'live'
   const features = PROBLEM_FEATURES[selectedId] || PROBLEM_FEATURES['xray-pneumonia']
   const outputType = selected?.outputType || 'multi-label'
   const isMultiClass = outputType === 'multi-class'
+  // Centralized per-task copy + disclaimer
+  const copy = PROBLEM_COPY[selectedId] || PROBLEM_COPY['xray-pneumonia']
+  const disclaimer = TASK_DISCLAIMERS[selectedId] || SHARED_DISCLAIMER
 
-  // Per-problem copy / labels
-  const problemCopy = {
-    'xray-pneumonia': {
-      uploadTitle: 'Upload X-ray',
-      predictLabel: 'Analyze X-ray',
-      uploadHint: 'JPG, PNG supported · Chest X-ray images',
-      resultsTitle: 'X-ray Analysis',
-      tryAgain: 'Analyze Another X-ray',
-      emptyTitle: 'Ready to Analyze',
-      emptyBody: 'Upload a chest X-ray to detect pathologies with attention visualization.',
-    },
-    'skin-lesion': {
-      uploadTitle: 'Upload Dermoscopy Image',
-      predictLabel: 'Classify Lesion',
-      uploadHint: 'JPG, PNG supported · Dermoscopic close-up images',
-      resultsTitle: 'Skin Lesion Analysis',
-      tryAgain: 'Classify Another Lesion',
-      emptyTitle: 'Ready to Classify',
-      emptyBody: 'Upload a dermoscopy image to identify lesion type with attention heatmap.',
-    },
-    'brain-tumor-mri': {
-      uploadTitle: 'Upload Brain MRI',
-      predictLabel: 'Classify MRI',
-      uploadHint: 'JPG, PNG supported · Brain MRI slices',
-      resultsTitle: 'Brain Tumor Analysis',
-      tryAgain: 'Classify Another MRI',
-      emptyTitle: 'Ready to Classify',
-      emptyBody: 'Upload a brain MRI to classify glioma, meningioma, pituitary, or no tumor.',
-    },
-  }
-  const copy = problemCopy[selectedId] || problemCopy['xray-pneumonia']
-
+  // Reset state on problem switch — also abort any pending request
   useEffect(() => {
+    abortRef.current?.abort()
     setImage(null)
     setPreview(null)
     setResult(null)
     setError(null)
   }, [selectedId])
+
+  // Final cleanup on unmount
+  useEffect(() => () => abortRef.current?.abort(), [])
 
   // Warm up the model when X-ray is selected
   useEffect(() => {
@@ -102,6 +134,10 @@ export default function MedicalImagingPage() {
   }, [selected?.modelKey, isLive])
 
   const handleFileSelect = useCallback((file) => {
+    if (file && file.size > MAX_FILE_BYTES) {
+      setError(`File too large (${(file.size / 1024 / 1024).toFixed(1)} MB > ${MAX_FILE_BYTES / 1024 / 1024} MB).`)
+      return
+    }
     setImage(file)
     setPreview(URL.createObjectURL(file))
     setResult(null)
@@ -109,24 +145,49 @@ export default function MedicalImagingPage() {
   }, [])
 
   const clearImage = useCallback(() => {
+    abortRef.current?.abort()
     setPreview(null)
     setImage(null)
     setResult(null)
     setError(null)
   }, [])
 
-  const buildEndpoint = () => {
+  // Config-driven endpoint builder. Each problem can declare any
+  // query-string params it wants in `selected.endpointParams` (a function of
+  // page state) — no more hard-coded `if (id === 'xray-pneumonia')` branch.
+  const buildEndpoint = useCallback(() => {
     if (!selected?.endpoint) return null
-    // X-ray supports fast-mode (pseudo-CAM vs Grad-CAM) via query params
+    const base = `${API_BASE}${selected.endpoint}`
+    // X-ray is the only built-in task that toggles Grad-CAM vs pseudo-CAM
+    // today. We compute its params here while keeping a generic seam:
+    // problemConfigs.js can grow `endpointParams: (state) => ({...})` later.
     if (selected.id === 'xray-pneumonia') {
-      return `${API_BASE}${selected.endpoint}?use_pseudo_cam=${fastMode}&heatmap=true`
+      const qs = new URLSearchParams({
+        use_pseudo_cam: String(fastMode),
+        heatmap: 'true',
+      })
+      return `${base}?${qs.toString()}`
     }
-    return `${API_BASE}${selected.endpoint}`
-  }
+    if (typeof selected.endpointParams === 'function') {
+      const params = selected.endpointParams({ fastMode })
+      const qs = new URLSearchParams(params)
+      return [...qs].length > 0 ? `${base}?${qs.toString()}` : base
+    }
+    return base
+  }, [selected, fastMode])
 
   const runPredict = async () => {
     const url = buildEndpoint()
     if (!image || !url) return
+    if (image.size > MAX_FILE_BYTES) {
+      setError(`File too large (${(image.size / 1024 / 1024).toFixed(1)} MB).`)
+      return
+    }
+
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     setLoading(true)
     setError(null)
     const formData = new FormData()
@@ -134,11 +195,15 @@ export default function MedicalImagingPage() {
     try {
       const resp = await axios.post(url, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        signal: controller.signal,
+        timeout: 60000,
       })
       setResult(resp.data)
     } catch (err) {
-      setError(err.response?.data?.detail || 'X-ray analysis failed')
+      const msg = formatPredictError(err, 'Medical analysis failed')
+      if (msg) setError(msg)
     } finally {
+      if (abortRef.current === controller) abortRef.current = null
       setLoading(false)
     }
   }
@@ -146,27 +211,62 @@ export default function MedicalImagingPage() {
   const handleSampleClick = async (sample) => {
     const url = buildEndpoint()
     if (!url) return
+
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     setLoading(true)
     setError(null)
     setResult(null)
     try {
       const resp = await fetch(sample.url)
       const blob = await resp.blob()
-      const file = new File([blob], 'sample.jpg', { type: blob.type })
+      // Use sample label as filename so backend logs distinguish samples.
+      const safeName = `${(sample.label || 'sample').replace(/\s+/g, '-').toLowerCase()}.jpg`
+      const file = new File([blob], safeName, { type: blob.type })
       setImage(file)
       setPreview(sample.url)
       const formData = new FormData()
       formData.append('file', file)
       const prediction = await axios.post(url, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        signal: controller.signal,
+        timeout: 60000,
       })
       setResult(prediction.data)
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to process sample image')
+      const msg = formatPredictError(err, 'Failed to process sample image')
+      if (msg) setError(msg)
     } finally {
+      if (abortRef.current === controller) abortRef.current = null
       setLoading(false)
     }
   }
+
+  // Memoize derived view models so the IIFEs in the JSX don't re-compute
+  // every render (fixes the "3 IIFEs in JSX" smell).
+  const multiClassView = useMemo(() => {
+    if (!isMultiClass || !result) return null
+    const topInfo = getMedicalClass(selectedId, result.prediction)
+    const isMalignant = topInfo.malignant === true
+    const isLowConf = result.confidence < 0.5
+    return {
+      topInfo,
+      isMalignant,
+      isLowConf,
+      color: isMalignant ? '#B91C1C' : isLowConf ? '#F59E0B' : '#10B981',
+      ringDeg: Math.min(360, result.confidence * 360),
+    }
+  }, [isMultiClass, result, selectedId])
+
+  const multiLabelView = useMemo(() => {
+    if (isMultiClass || !result) return null
+    return {
+      topBand: getScoreBand(result.confidence),
+      topInfo: getPathology(result.prediction),
+    }
+  }, [isMultiClass, result])
 
   return (
     <motion.div initial="hidden" animate="visible" variants={stagger} className="space-y-8 pb-12">
@@ -276,32 +376,22 @@ export default function MedicalImagingPage() {
           <div className="space-y-8">
             {result ? (
               <div className="glass-card rounded-[2.5rem] p-8 border border-border space-y-6">
-                {/* Medical disclaimer — prominent */}
+                {/* Medical disclaimer — pulled from TASK_DISCLAIMERS so per-task
+                    wording is centralized and not duplicated inline. */}
                 <div className="p-4 rounded-2xl bg-warning/10 border border-warning/30 flex items-start gap-3">
                   <AlertTriangle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
                   <div className="text-[11px] text-text-secondary leading-relaxed">
                     <strong className="text-warning">{SHARED_DISCLAIMER}</strong>{' '}
-                    This model provides pattern-matching hints for educational use.
-                    <strong>
-                      {' '}Only a qualified specialist can diagnose medical images.
-                    </strong>
+                    {disclaimer}
                   </div>
                 </div>
 
                 <h3 className="text-2xl font-black text-text-primary">{copy.resultsTitle}</h3>
 
-                {/* ── Multi-class branch (skin / brain) ── */}
-                {isMultiClass && (() => {
-                  const topInfo = getMedicalClass(selectedId, result.prediction)
+                {/* ── Multi-class branch (skin / brain) — view model memoized above ── */}
+                {isMultiClass && multiClassView && (() => {
+                  const { topInfo, isMalignant, isLowConf, color, ringDeg } = multiClassView
                   const confPct = (result.confidence * 100).toFixed(1)
-                  const isMalignant = topInfo.malignant === true
-                  const isLowConf = result.confidence < 0.5
-                  const color = isMalignant
-                    ? '#B91C1C'
-                    : isLowConf
-                      ? '#F59E0B'
-                      : '#10B981'
-                  const ringDeg = Math.min(360, result.confidence * 360)
                   return (
                     <>
                       <div
@@ -426,52 +516,58 @@ export default function MedicalImagingPage() {
                   )
                 })()}
 
-                {/* ── Multi-label branch (X-ray, existing UI) ── */}
-                {!isMultiClass && (() => {
-                  const topBand = getScoreBand(result.confidence)
-                  const topInfo = getPathology(result.prediction)
-                  return (
-                    <div
-                      className="p-6 rounded-3xl border"
-                      style={{ background: `${topBand.color}10`, borderColor: `${topBand.color}40` }}
-                    >
-                      <div className="flex items-start justify-between gap-4 mb-3">
-                        <div className="min-w-0 flex-1">
-                          <div
-                            className="text-[10px] font-black uppercase tracking-[0.3em] mb-1"
-                            style={{ color: topBand.color }}
-                          >
-                            Top Attention
-                          </div>
-                          <div className="text-2xl md:text-3xl font-black text-text-primary">
-                            {topInfo.display}
-                          </div>
-                          <p className="text-xs text-text-muted mt-1 leading-relaxed">{topInfo.short}</p>
+                {/* ── Multi-label branch (X-ray) — uses memoized view model ──
+                    The "Top Attention" header purposely de-emphasizes the
+                    headline 0-1 score, since for normal X-rays this number
+                    typically lands in the 0.30-0.55 baseline band. The
+                    band-coloured pill below makes the meaning explicit
+                    (Baseline / Mild / Notable / High) so readers don't
+                    interpret raw scores as probabilities. */}
+                {!isMultiClass && multiLabelView && (
+                  <div
+                    className="p-6 rounded-3xl border"
+                    style={{ background: `${multiLabelView.topBand.color}10`, borderColor: `${multiLabelView.topBand.color}40` }}
+                  >
+                    <div className="flex items-start justify-between gap-4 mb-3">
+                      <div className="min-w-0 flex-1">
+                        <div
+                          className="text-[10px] font-black uppercase tracking-[0.3em] mb-1"
+                          style={{ color: multiLabelView.topBand.color }}
+                        >
+                          Top Attention
                         </div>
-                        <div className="text-right shrink-0">
-                          <div className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] mb-1">
-                            Score
-                          </div>
-                          <div className="text-2xl md:text-3xl font-black" style={{ color: topBand.color }}>
-                            {(result.confidence * 100).toFixed(1)}%
-                          </div>
-                          <div
-                            className="text-[9px] font-black uppercase tracking-widest mt-1"
-                            style={{ color: topBand.color }}
-                          >
-                            {topBand.label}
-                          </div>
+                        <div className="text-2xl md:text-3xl font-black text-text-primary">
+                          {multiLabelView.topInfo.display}
                         </div>
+                        <p className="text-xs text-text-muted mt-1 leading-relaxed">{multiLabelView.topInfo.short}</p>
                       </div>
-                      <div
-                        className="text-[11px] italic p-2.5 rounded-lg"
-                        style={{ background: `${topBand.color}15`, color: topBand.color }}
-                      >
-                        {topBand.description}
+                      <div className="text-right shrink-0">
+                        <div className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] mb-1">
+                          Score
+                          <MetricHelpTooltip metric="multi-label-score">
+                            <span className="ml-1 text-[9px] opacity-70 cursor-help">(?)</span>
+                          </MetricHelpTooltip>
+                        </div>
+                        {/* Toned-down size to reduce alarm bias when score is in baseline band */}
+                        <div className="text-xl md:text-2xl font-black" style={{ color: multiLabelView.topBand.color }}>
+                          {(result.confidence * 100).toFixed(1)}%
+                        </div>
+                        <div
+                          className="text-[9px] font-black uppercase tracking-widest mt-1"
+                          style={{ color: multiLabelView.topBand.color }}
+                        >
+                          {multiLabelView.topBand.label}
+                        </div>
                       </div>
                     </div>
-                  )
-                })()}
+                    <div
+                      className="text-[11px] italic p-2.5 rounded-lg"
+                      style={{ background: `${multiLabelView.topBand.color}15`, color: multiLabelView.topBand.color }}
+                    >
+                      {multiLabelView.topBand.description}
+                    </div>
+                  </div>
+                )}
 
                 {!isMultiClass && <>
                 {/* Collapsible: How to read this */}
@@ -512,7 +608,7 @@ export default function MedicalImagingPage() {
                   <div>
                     <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
                       <div className="text-xs font-bold text-text-muted uppercase tracking-widest flex items-center gap-2">
-                        <Layers className="w-3 h-3" /> Attention Heatmap — {getPathology(result.prediction).display}
+                        <Layers className="w-3 h-3" /> Attention Heatmap — {multiLabelView?.topInfo.display}
                       </div>
                       {result.mode && (
                         <span

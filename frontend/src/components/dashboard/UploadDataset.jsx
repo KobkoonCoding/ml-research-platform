@@ -6,6 +6,11 @@ import { Upload, FileSpreadsheet, AlertTriangle, CheckCircle2, Ship, Home, Flowe
 
 const MAX_SIZE_MB = 100
 
+// Supported file extensions — kept in sync with backend `_parse_uploaded_file()`.
+const ACCEPTED_EXTENSIONS = ['csv', 'tsv', 'xls', 'xlsx', 'parquet', 'json', 'jsonl', 'ndjson']
+const ACCEPT_ATTR = ACCEPTED_EXTENSIONS.map((e) => `.${e}`).join(',')
+const EXT_REGEX = new RegExp(`\\.(${ACCEPTED_EXTENSIONS.join('|')})$`, 'i')
+
 const DEMO_DATASETS = [
   { id: 'titanic', label: 'Titanic', type: 'Classification', icon: Ship, color: '#60a5fa', rows: '1,309', cols: 11 },
   { id: 'house_prices', label: 'House Prices', type: 'Regression', icon: Home, color: '#f59e0b', rows: '1,460', cols: 81 },
@@ -17,14 +22,15 @@ export default function UploadDataset({ onUploadSuccess }) {
   const [loading, setLoading] = useState(false)
   const [loadingDemo, setLoadingDemo] = useState(null)
   const [error, setError] = useState('')
+  const [warning, setWarning] = useState('')
   const [dragActive, setDragActive] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const inputRef = useRef()
 
   const validateFile = (f) => {
     if (!f) return 'No file selected'
-    if (!f.name.match(/\.(csv|xlsx?)$/i))
-      return 'Unsupported file format. Please upload a .csv or .xlsx file.'
+    if (!EXT_REGEX.test(f.name))
+      return `Unsupported file format. Supported: ${ACCEPTED_EXTENSIONS.map((e) => `.${e}`).join(', ')}.`
     if (f.size > MAX_SIZE_MB * 1024 * 1024)
       return `File too large (max ${MAX_SIZE_MB} MB).`
     if (f.size === 0)
@@ -37,6 +43,7 @@ export default function UploadDataset({ onUploadSuccess }) {
     if (err) { setError(err); setFile(null); return }
     setFile(f)
     setError('')
+    setWarning('')
   }
 
   const handleDrop = useCallback((e) => {
@@ -51,6 +58,7 @@ export default function UploadDataset({ onUploadSuccess }) {
     if (!file) return
     setLoading(true)
     setError('')
+    setWarning('')
     setUploadProgress(0)
 
     const formData = new FormData()
@@ -64,10 +72,24 @@ export default function UploadDataset({ onUploadSuccess }) {
           if (e.total) setUploadProgress(Math.round((e.loaded / e.total) * 100))
         }
       })
+      // Surface the backend's heuristic warning (e.g. missing-header detection)
+      // without blocking the upload — the user should still proceed if they meant it.
+      if (resp.data?.header_warning) setWarning(resp.data.header_warning)
       onUploadSuccess(resp.data.analysis)
     } catch (err) {
       const detail = err.response?.data?.detail
-      setError(typeof detail === 'string' ? detail : 'An error occurred during upload. Please check file format and try again.')
+      const status = err.response?.status
+      let msg
+      if (!err.response) {
+        msg = 'Network error — backend unreachable. Check the dev server is running.'
+      } else if (status >= 500) {
+        msg = `Server error (${status}): ${typeof detail === 'string' ? detail : 'unknown'}`
+      } else if (status >= 400) {
+        msg = typeof detail === 'string' ? detail : `Upload rejected (${status}).`
+      } else {
+        msg = 'An error occurred during upload.'
+      }
+      setError(msg)
     } finally {
       setLoading(false)
       setUploadProgress(0)
@@ -78,6 +100,7 @@ export default function UploadDataset({ onUploadSuccess }) {
     setLoadingDemo(datasetName)
     setLoading(true)
     setError('')
+    setWarning('')
     try {
       const resp = await axios.get(`${API_BASE}/demo/${datasetName}`)
       onUploadSuccess(resp.data.analysis)
@@ -180,7 +203,7 @@ export default function UploadDataset({ onUploadSuccess }) {
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                   or <span style={{ color: 'var(--primary)', fontWeight: 600 }}>click to browse</span>
                   <span style={{ margin: '0 0.5rem', opacity: 0.3 }}>|</span>
-                  .csv, .xlsx up to {MAX_SIZE_MB}MB
+                  CSV, TSV, Excel, Parquet, JSON up to {MAX_SIZE_MB}MB
                 </p>
               </motion.div>
             ) : (
@@ -229,7 +252,7 @@ export default function UploadDataset({ onUploadSuccess }) {
           <input
             ref={inputRef}
             type="file"
-            accept=".csv,.xls,.xlsx"
+            accept={ACCEPT_ATTR}
             onChange={(e) => handleFileSelect(e.target.files[0])}
             style={{ display: 'none' }}
           />
@@ -285,6 +308,28 @@ export default function UploadDataset({ onUploadSuccess }) {
           >
             <AlertTriangle style={{ width: 18, height: 18, flexShrink: 0, color: '#f87171' }} />
             <span>{error}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Header / parsing warning — non-blocking, surfaced from backend */}
+      <AnimatePresence>
+        {warning && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            style={{
+              marginTop: '1rem', padding: '0.85rem 1rem',
+              background: 'rgba(245,158,11,0.08)',
+              border: '1px solid rgba(245,158,11,0.25)',
+              borderRadius: 12,
+              display: 'flex', alignItems: 'flex-start', gap: '0.75rem',
+              fontSize: '0.9rem', color: '#fbbf24',
+            }}
+          >
+            <AlertTriangle style={{ width: 18, height: 18, flexShrink: 0, color: '#f59e0b', marginTop: 1 }} />
+            <span>{warning}</span>
           </motion.div>
         )}
       </AnimatePresence>

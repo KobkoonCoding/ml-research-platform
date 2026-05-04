@@ -88,6 +88,12 @@ export default function ObjectDetectionPage() {
     setError(null)
   }, [])
 
+  // Server-side filter — backend respects this so payload only contains
+  // detections at or above the user's chosen threshold (instead of always 0.1).
+  // Subtract a small epsilon so the slider can still reveal lower-conf
+  // detections without triggering a refetch.
+  const serverConfThreshold = Math.max(0.05, confThreshold - 0.05)
+
   const runPredict = async () => {
     if (!image || !selected?.endpoint) return
     setLoading(true)
@@ -95,9 +101,11 @@ export default function ObjectDetectionPage() {
     const formData = new FormData()
     formData.append('file', image)
     try {
-      const resp = await axios.post(`${API_BASE}${selected.endpoint}?conf_threshold=0.1`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
+      const resp = await axios.post(
+        `${API_BASE}${selected.endpoint}?conf_threshold=${serverConfThreshold}`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      )
       setResult(resp.data)
     } catch (err) {
       setError(err.response?.data?.detail || 'Detection failed')
@@ -114,14 +122,19 @@ export default function ObjectDetectionPage() {
     try {
       const resp = await fetch(sample.url)
       const blob = await resp.blob()
-      const file = new File([blob], 'sample.jpg', { type: blob.type })
+      // Use sample label as filename so server-side debugging can distinguish
+      // the source image (was 'sample.jpg' for every sample before).
+      const safeName = `${(sample.label || 'sample').replace(/\s+/g, '-').toLowerCase()}.jpg`
+      const file = new File([blob], safeName, { type: blob.type })
       setImage(file)
       setPreview(sample.url)
       const formData = new FormData()
       formData.append('file', file)
-      const prediction = await axios.post(`${API_BASE}${selected.endpoint}?conf_threshold=0.1`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
+      const prediction = await axios.post(
+        `${API_BASE}${selected.endpoint}?conf_threshold=${serverConfThreshold}`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      )
       setResult(prediction.data)
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to process sample image')
@@ -370,14 +383,31 @@ export default function ObjectDetectionPage() {
           {isLive
             ? (
                 selectedId === 'animal-detection'
-                  ? 'YOLOv8n trained on COCO 2017 — detects 10 animal classes (bird, cat, dog, horse, sheep, cow, elephant, bear, zebra, giraffe). License: AGPL-3.0.'
+                  ? 'YOLOv8n trained on COCO 2017 — detects 10 animal classes (bird, cat, dog, horse, sheep, cow, elephant, bear, zebra, giraffe).'
                 : selectedId === 'pose-estimation'
-                  ? 'YOLOv8n-pose trained on COCO Keypoints 2017 — locates 17 body keypoints (eyes, ears, shoulders, elbows, wrists, hips, knees, ankles) per person. License: AGPL-3.0.'
-                  : 'YOLOv8n trained on COCO 2017 — detects 80 everyday object categories (vehicles, furniture, electronics, kitchenware, food, etc.). License: AGPL-3.0.'
+                  ? 'YOLOv8n-pose trained on COCO Keypoints 2017 — locates 17 body keypoints (eyes, ears, shoulders, elbows, wrists, hips, knees, ankles) per person.'
+                  : 'YOLOv8n trained on COCO 2017 — detects 80 everyday object categories (vehicles, furniture, electronics, kitchenware, food, etc.).'
               )
             : (selected?.note || 'Object detection models are currently in training.')}
         </p>
       </motion.div>
+
+      {/* AGPL Notice — research/showcase only, NOT a commercial product */}
+      {isLive && (
+        <motion.div variants={fadeUp} className="glass-panel p-5 rounded-[1.5rem] border border-warning/30 bg-warning/5">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
+            <div className="text-xs leading-relaxed text-text-secondary">
+              <strong className="text-warning block mb-1">Licensing Notice</strong>
+              The YOLOv8 model used here is licensed under <strong>AGPL-3.0</strong> (Ultralytics).
+              This platform is a <strong>research showcase</strong> — not a commercial product. Anyone
+              redeploying this code for non-research use must comply with AGPL-3.0 (open-source
+              the entire stack) or obtain a commercial license from Ultralytics.
+              See <a href="https://www.ultralytics.com/license" target="_blank" rel="noopener noreferrer" className="underline text-warning hover:text-warning/80">ultralytics.com/license</a>.
+            </div>
+          </div>
+        </motion.div>
+      )}
     </motion.div>
   )
 }

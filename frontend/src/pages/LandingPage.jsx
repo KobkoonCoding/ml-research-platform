@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { motion, useInView, useScroll, useTransform, useMotionTemplate, useMotionValue, AnimatePresence } from 'framer-motion'
 import {
   Zap, ArrowRight, BrainCircuit, Database, Cpu, Sparkles,
-  MonitorPlay, Activity, FileCheck2, Beaker, GraduationCap, ShieldCheck, X
+  MonitorPlay, Activity, FileCheck2, Beaker, GraduationCap, ShieldCheck, X, Menu
 } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import DeveloperCard from '../components/landing/DeveloperCard'
@@ -312,13 +312,106 @@ function InteractiveModuleCard({ module, index }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   ROBOT SPLINE PANEL — lazy-mounts the second Spline scene only when
+   the panel scrolls near the viewport. Saves ~3 MB of bandwidth +
+   GPU work on initial paint, since the hero already loads one scene.
+   ══════════════════════════════════════════════════════════════ */
+
+function RobotSplinePanel({ style }) {
+  const ref = useRef(null)
+  const inView = useInView(ref, { margin: '300px 0px', once: true })
+
+  return (
+    <motion.div
+      ref={ref}
+      style={style}
+      className="w-full lg:w-[45%] h-[500px] lg:h-auto lg:sticky lg:top-24 rounded-[3rem] border border-white/5 overflow-hidden pointer-events-auto relative shadow-[0_0_100px_rgba(0,0,0,0.5)]"
+    >
+      <div className="absolute inset-0 bg-gradient-to-br from-[#111] to-black" />
+      <div
+        className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.1)_1px,transparent_1px)]"
+        style={{ backgroundSize: '24px 24px' }}
+      />
+
+      {/* Spline only mounts after the panel approaches the viewport */}
+      <div className="absolute inset-0 z-10">
+        {inView && (
+          <Suspense fallback={null}>
+            <Spline scene="https://prod.spline.design/aTL6-pdugzBTCP3t/scene.splinecode" />
+          </Suspense>
+        )}
+      </div>
+      <div className="absolute inset-0 rounded-[3rem] border border-white/5 pointer-events-none z-20" />
+      <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#050505] to-transparent pointer-events-none z-20" />
+    </motion.div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════
    MAIN LANDING PAGE
    ══════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════
+   NAVBAR LINKS — anchor scroll for landing sections, route for /docs
+   ══════════════════════════════════════════════════════════════ */
+
+const NAV_LINKS = [
+  { id: 'about', label: 'About', href: '#about' },
+  { id: 'modules', label: 'Modules', href: '#modules' },
+  { id: 'workflow', label: 'Workflow', href: '#workflow' },
+  { id: 'docs', label: 'Docs', href: '/docs', external: true },
+]
+
+function smoothScrollTo(href) {
+  if (!href.startsWith('#')) return false
+  const el = document.querySelector(href)
+  if (!el) return false
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  return true
+}
 
 export default function LandingPage() {
   const navigate = useNavigate()
   const [showModuleModal, setShowModuleModal] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const { theme } = useTheme()
+
+  // Sticky-nav scroll detector
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 60)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // Esc closes the module modal AND mobile nav drawer
+  useEffect(() => {
+    if (!showModuleModal && !mobileNavOpen) return
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        setShowModuleModal(false)
+        setMobileNavOpen(false)
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [showModuleModal, mobileNavOpen])
+
+  // Lock body scroll while mobile drawer is open (prevents background scroll)
+  useEffect(() => {
+    if (!mobileNavOpen) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [mobileNavOpen])
+
+  const handleNavClick = (e, link) => {
+    if (link.external) return // let <Link> / browser handle route
+    e.preventDefault()
+    setMobileNavOpen(false)
+    smoothScrollTo(link.href)
+  }
 
   // Landing page MUST always render dark because:
   // 1. It uses a 3D Spline background whose colors are baked in and cannot re-theme
@@ -355,23 +448,123 @@ export default function LandingPage() {
   return (
     <div className="relative font-sans bg-[#050505] text-white selection:bg-primary/30" data-theme="dark">
 
-      {/* Ambient gradient blobs (CSS only) */}
+      {/* Ambient gradient blobs — mobile uses smaller blur to keep FPS up */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden" aria-hidden>
-        <div className="absolute -top-1/4 -left-1/4 w-[60vw] h-[60vw] rounded-full bg-primary/15 blur-[120px] animate-[pulse_8s_ease-in-out_infinite]" />
-        <div className="absolute -bottom-1/4 -right-1/4 w-[50vw] h-[50vw] rounded-full bg-secondary/10 blur-[100px] animate-[pulse_12s_ease-in-out_infinite_2s]" />
+        <div
+          className="absolute -top-1/4 -left-1/4 w-[60vw] h-[60vw] rounded-full bg-primary/15 blur-[60px] md:blur-[120px] animate-[pulse_8s_ease-in-out_infinite]"
+          style={{ willChange: 'opacity' }}
+        />
+        <div
+          className="absolute -bottom-1/4 -right-1/4 w-[50vw] h-[50vw] rounded-full bg-secondary/10 blur-[60px] md:blur-[100px] animate-[pulse_12s_ease-in-out_infinite_2s]"
+          style={{ willChange: 'opacity' }}
+        />
       </div>
 
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 w-full px-6 lg:px-12 py-6 flex justify-between items-center z-50">
-        <motion.div 
-          initial={{ opacity: 0, x: -20 }} 
-          animate={{ opacity: 1, x: 0 }} 
-          transition={{ duration: 0.5 }}
-          className="flex items-center gap-2.5 font-black text-lg tracking-tight text-white"
-        >
-          <Zap className="w-5 h-5 text-primary" />
-          NEXUS
-        </motion.div>
+      {/* Navigation — sticky, gains backdrop-blur after first scroll */}
+      <nav
+        className={`fixed top-0 left-0 w-full px-6 lg:px-12 z-50 transition-all duration-300 ${
+          scrolled
+            ? 'py-3 bg-black/65 backdrop-blur-xl border-b border-white/10 shadow-lg'
+            : 'py-6 bg-transparent border-b border-transparent'
+        }`}
+      >
+        <div className="max-w-[1400px] mx-auto flex items-center justify-between">
+          {/* Logo — also scrolls to top */}
+          <motion.button
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5 }}
+            className="flex items-center gap-2.5 font-black text-lg tracking-tight text-white outline-none"
+            aria-label="Back to top"
+          >
+            <Zap className="w-5 h-5 text-primary" />
+            NEXUS
+          </motion.button>
+
+          {/* Desktop links */}
+          <div className="hidden md:flex items-center gap-8">
+            {NAV_LINKS.map((link) =>
+              link.external ? (
+                <Link
+                  key={link.id}
+                  to={link.href}
+                  className="text-sm font-bold text-white/70 hover:text-white transition-colors no-underline"
+                >
+                  {link.label}
+                </Link>
+              ) : (
+                <a
+                  key={link.id}
+                  href={link.href}
+                  onClick={(e) => handleNavClick(e, link)}
+                  className="text-sm font-bold text-white/70 hover:text-white transition-colors"
+                >
+                  {link.label}
+                </a>
+              )
+            )}
+            <button
+              onClick={() => setShowModuleModal(true)}
+              className="ml-2 px-5 py-2 rounded-full bg-white text-black font-bold text-xs hover:scale-[1.04] transition-transform shadow-[0_0_20px_rgba(255,255,255,0.15)]"
+            >
+              Get Started
+            </button>
+          </div>
+
+          {/* Mobile hamburger */}
+          <button
+            onClick={() => setMobileNavOpen((v) => !v)}
+            className="md:hidden w-10 h-10 rounded-xl border border-white/15 bg-white/5 flex items-center justify-center text-white hover:bg-white/10 transition-colors"
+            aria-label={mobileNavOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileNavOpen}
+          >
+            {mobileNavOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
+
+        {/* Mobile drawer */}
+        <AnimatePresence>
+          {mobileNavOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="md:hidden absolute left-0 right-0 top-full mt-2 mx-4 rounded-2xl border border-white/10 bg-black/85 backdrop-blur-xl p-4 shadow-2xl"
+            >
+              <div className="flex flex-col gap-1">
+                {NAV_LINKS.map((link) =>
+                  link.external ? (
+                    <Link
+                      key={link.id}
+                      to={link.href}
+                      onClick={() => setMobileNavOpen(false)}
+                      className="px-4 py-3 rounded-xl text-sm font-bold text-white/80 hover:text-white hover:bg-white/10 transition-colors no-underline"
+                    >
+                      {link.label}
+                    </Link>
+                  ) : (
+                    <a
+                      key={link.id}
+                      href={link.href}
+                      onClick={(e) => handleNavClick(e, link)}
+                      className="px-4 py-3 rounded-xl text-sm font-bold text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                    >
+                      {link.label}
+                    </a>
+                  )
+                )}
+                <button
+                  onClick={() => { setMobileNavOpen(false); setShowModuleModal(true) }}
+                  className="mt-2 px-4 py-3 rounded-xl bg-white text-black font-black text-sm flex items-center justify-center gap-2"
+                >
+                  Get Started <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </nav>
 
       <main className="relative z-10 overflow-hidden">
@@ -380,7 +573,7 @@ export default function LandingPage() {
         {/* ═══════════════════════════════════════════════════════
             SECTION 1 — HERO
             ══════════════════════════════════════════════════════ */}
-        <section className="relative z-10 h-[100svh] overflow-hidden bg-[#050505]">
+        <section id="hero" className="relative z-10 h-[100svh] overflow-hidden bg-[#050505] scroll-mt-20">
 
           {/* Spline — absolute full-screen background */}
           <div className="absolute inset-0 pointer-events-auto">
@@ -471,7 +664,7 @@ export default function LandingPage() {
           {/* ═══════════════════════════════════════════════════════
               SECTION 2 — ABOUT PLATFORM + ROBOT
               ══════════════════════════════════════════════════════ */}
-          <section className="relative z-10 px-6 lg:px-12 pt-20 md:pt-32 pb-24 md:pb-40">
+          <section id="about" className="relative z-10 px-6 lg:px-12 pt-20 md:pt-32 pb-24 md:pb-40 scroll-mt-20">
             {/* Re-enable pointer events for inner content container so buttons/cards work */}
             <div className="max-w-[1400px] mx-auto pointer-events-auto">
 
@@ -573,22 +766,9 @@ export default function LandingPage() {
               </motion.div>
 
               {/* RIGHT: Robot container (sticky, sliding vertically + fade) */}
-              <motion.div 
+              <RobotSplinePanel
                 style={{ opacity: robotOpacity, y: robotY, willChange: 'opacity, transform' }}
-                className="w-full lg:w-[45%] h-[500px] lg:h-auto lg:sticky lg:top-24 rounded-[3rem] border border-white/5 overflow-hidden pointer-events-auto relative shadow-[0_0_100px_rgba(0,0,0,0.5)]"
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-[#111] to-black" />
-                <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.1)_1px,transparent_1px)]" style={{ backgroundSize: '24px 24px' }} />
-
-                <div className="absolute inset-0 z-10">
-                  <Suspense fallback={null}>
-                    <Spline scene="https://prod.spline.design/aTL6-pdugzBTCP3t/scene.splinecode" />
-                  </Suspense>
-                </div>
-                {/* Sleek edge lighting on container */}
-                <div className="absolute inset-0 rounded-[3rem] border border-white/5 pointer-events-none z-20" />
-                <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#050505] to-transparent pointer-events-none z-20" />
-              </motion.div>
+              />
             </div>
           </div>
         </section>
@@ -596,7 +776,7 @@ export default function LandingPage() {
           {/* ═══════════════════════════════════════════════════════
               SECTION 3 — MODULES
               ══════════════════════════════════════════════════════ */}
-          <section className="relative z-10 px-6 lg:px-12 py-20 md:py-32 border-t border-white/5">
+          <section id="modules" className="relative z-10 px-6 lg:px-12 py-20 md:py-32 border-t border-white/5 scroll-mt-20">
             <div className="max-w-[1400px] mx-auto pointer-events-auto">
 
             <motion.div
@@ -635,7 +815,7 @@ export default function LandingPage() {
           {/* ═══════════════════════════════════════════════════════
               SECTION 4 — HOW TO USE
               ══════════════════════════════════════════════════════ */}
-          <section className="relative z-10 py-20 md:py-32 px-6 lg:px-12 border-t border-white/5">
+          <section id="workflow" className="relative z-10 py-20 md:py-32 px-6 lg:px-12 border-t border-white/5 scroll-mt-20">
             <div className="max-w-6xl mx-auto pointer-events-auto">
             <motion.div
               initial={{ opacity: 0, y: 30 }}

@@ -82,7 +82,7 @@ export default function DocsPage() {
             <p className="text-text-muted mb-4">
               Jump right in by loading a demo dataset. Go to Upload Dataset and click any demo button to instantly explore the platform.
             </p>
-            <Link to="/dashboard/upload">
+            <Link to="/forensic/upload">
               <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-success/15 text-success font-semibold text-sm hover:bg-success/25 transition-colors">
                 Go to Upload <ArrowRight className="w-4 h-4" />
               </button>

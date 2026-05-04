@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
@@ -7,6 +7,8 @@ import numpy as np
 import io
 import os
 import datetime
+import time
+from threading import Lock
 from fastapi.responses import Response
 
 from preprocessing import (
@@ -26,7 +28,6 @@ from elm_model import ELMClassifier, ELMRegressor
 from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, roc_auc_score, roc_curve, precision_recall_curve
 from cv_pipeline import apply_pipeline_cv
-import time
 import json
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, LabelEncoder
 from PIL import Image
@@ -43,21 +44,59 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-original_dataset: Optional[pd.DataFrame] = None
-current_dataset: Optional[pd.DataFrame] = None
-pipeline_history: List[dict] = []
-dataset_snapshots: List[pd.DataFrame] = []  # for undo
+# ─── Session-scoped state ───
+# Each browser tab gets a unique session_id (sent as X-Session-Id header).
+# This isolates per-user state so concurrent demos don't overwrite each other's
+# datasets / pipelines / trained models. Sessions live in process memory only —
+# acceptable for a single-instance research showcase, NOT for production.
 
-# Persistent training state for Module 2 real-time prediction
-last_trained_info = {
-    "model": None,
-    "scaler": None,
-    "label_encoder": None,
-    "features": [],
-    "target": None,
-    "problem_type": None,
-    "activation": "sigmoid"
-}
+_sessions_lock = Lock()
+_sessions: dict = {}  # session_id -> session_state (dict)
+_SESSION_TTL_SECONDS = 60 * 60 * 6  # 6h — generous for a long demo session
+
+
+def _new_session_state() -> dict:
+    return {
+        "original_dataset": None,
+        "current_dataset": None,
+        "pipeline_history": [],
+        "dataset_snapshots": [],
+        "last_trained_info": {
+            "model": None,
+            "scaler": None,
+            "label_encoder": None,
+            "features": [],
+            "target": None,
+            "problem_type": None,
+            "activation": "sigmoid",
+        },
+        "last_seen": time.time(),
+    }
+
+
+def _evict_stale_sessions(now: float) -> None:
+    """Lazy cleanup — drop sessions idle longer than TTL. Called on each access."""
+    stale = [sid for sid, s in _sessions.items()
+             if now - s.get("last_seen", 0) > _SESSION_TTL_SECONDS]
+    for sid in stale:
+        _sessions.pop(sid, None)
+
+
+def get_session(session_id: Optional[str]) -> dict:
+    """Return (or create) the session state dict for a given session_id.
+
+    Falls back to 'default' when no header is sent — preserves backward-compat
+    with any tooling that doesn't yet send X-Session-Id (e.g. raw curl calls).
+    """
+    sid = session_id or "default"
+    now = time.time()
+    with _sessions_lock:
+        _evict_stale_sessions(now)
+        if sid not in _sessions:
+            _sessions[sid] = _new_session_state()
+        else:
+            _sessions[sid]["last_seen"] = now
+        return _sessions[sid]
 
 
 class PreprocessRequest(BaseModel):
@@ -69,14 +108,18 @@ class TrainELMRequest(BaseModel):
     target_column: str
     problem_type: str = "classification"
     features: List[str] = []
-    
+
     # Split config
     split_strategy: str = "kfold"  # holdout, kfold, stratified_kfold
     num_folds: int = 5
     test_size: float = 0.2
     shuffle: bool = True
     random_seed: int = 42
-    
+    # When True + classification holdout, stratify on target so the train/test
+    # split preserves class proportions. (Was always None before — broke
+    # imbalanced-classification evaluations.)
+    stratify_holdout: bool = True
+
     # ELM Hyperparams
     hidden_nodes: int = 100
     activation: str = "sigmoid"
@@ -94,33 +137,97 @@ class ImagePredictResponse(BaseModel):
     all_scores: dict = {}
 
 
-def _require_dataset():
-    if current_dataset is None:
+def _require_dataset(session: dict) -> None:
+    if session["current_dataset"] is None:
         raise HTTPException(status_code=404, detail="No dataset uploaded.")
+
+
+def _detect_encoding(raw: bytes) -> str:
+    """Best-effort encoding detection for CSV uploads.
+
+    Tries: UTF-8 BOM marker → UTF-8 → cp874 (Thai) → latin-1 (always succeeds).
+    Avoids depending on chardet/charset-normalizer to keep requirements lean.
+    """
+    if raw.startswith(b'\xef\xbb\xbf'):
+        return 'utf-8-sig'
+    for enc in ('utf-8', 'cp874', 'latin-1'):
+        try:
+            raw.decode(enc)
+            return enc
+        except UnicodeDecodeError:
+            continue
+    return 'latin-1'  # never raises
+
+
+def _parse_uploaded_file(filename: str, contents: bytes) -> pd.DataFrame:
+    """Parse an uploaded dataset file into a DataFrame.
+
+    Supports: .csv (with encoding sniff), .tsv, .xls/.xlsx, .parquet,
+    .json, .jsonl/.ndjson. Caller handles HTTPException 400 for bad inputs.
+    """
+    lower = filename.lower()
+    if lower.endswith('.csv'):
+        encoding = _detect_encoding(contents)
+        return pd.read_csv(io.StringIO(contents.decode(encoding, errors='replace')))
+    if lower.endswith('.tsv'):
+        encoding = _detect_encoding(contents)
+        return pd.read_csv(io.StringIO(contents.decode(encoding, errors='replace')), sep='\t')
+    if lower.endswith(('.xls', '.xlsx')):
+        return pd.read_excel(io.BytesIO(contents))
+    if lower.endswith('.parquet'):
+        try:
+            return pd.read_parquet(io.BytesIO(contents))
+        except ImportError as exc:
+            raise HTTPException(
+                status_code=500,
+                detail="Parquet requires pyarrow or fastparquet. Install one to enable .parquet uploads.",
+            ) from exc
+    if lower.endswith(('.jsonl', '.ndjson')):
+        encoding = _detect_encoding(contents)
+        return pd.read_json(io.StringIO(contents.decode(encoding, errors='replace')), lines=True)
+    if lower.endswith('.json'):
+        encoding = _detect_encoding(contents)
+        text = contents.decode(encoding, errors='replace')
+        # Accept either an array of records (records orient) or a column-oriented dict.
+        try:
+            return pd.read_json(io.StringIO(text))
+        except ValueError:
+            return pd.read_json(io.StringIO(text), orient='records')
+    raise HTTPException(
+        status_code=400,
+        detail="Unsupported file format. Supported: CSV, TSV, Excel (.xls/.xlsx), Parquet, JSON, JSONL.",
+    )
 
 
 # ─── Upload ───
 @app.post("/upload")
-async def upload_dataset(file: UploadFile = File(...)):
-    global original_dataset, current_dataset, pipeline_history, dataset_snapshots
+async def upload_dataset(
+    file: UploadFile = File(...),
+    x_session_id: Optional[str] = Header(None, alias="X-Session-Id"),
+):
+    session = get_session(x_session_id)
     try:
         contents = await file.read()
-        if file.filename.endswith('.csv'):
-            df = pd.read_csv(io.StringIO(contents.decode('utf-8')))
-        elif file.filename.endswith(('.xls', '.xlsx')):
-            df = pd.read_excel(io.BytesIO(contents))
-        else:
-            raise HTTPException(status_code=400, detail="Unsupported file format. Upload CSV or Excel.")
+        df = _parse_uploaded_file(file.filename or 'dataset', contents)
 
-        original_dataset = df.copy()
-        current_dataset = df.copy()
-        pipeline_history = []
-        dataset_snapshots = []
+        # Sanity: empty dataset, or a 1-column dataset with a numeric "header" usually
+        # means the header row was missing — flag it so the frontend can warn the user.
+        header_warning: Optional[str] = None
+        if df.empty:
+            header_warning = "Dataset is empty after parsing — check the file contents."
+        elif df.shape[1] == 1 and any(isinstance(c, (int, float)) for c in df.columns):
+            header_warning = "First row may not be a header (only one column detected with a numeric name)."
+
+        session["original_dataset"] = df.copy()
+        session["current_dataset"] = df.copy()
+        session["pipeline_history"] = []
+        session["dataset_snapshots"] = []
 
         return {
             "message": "File uploaded successfully",
             "filename": file.filename,
-            "analysis": analyze_dataset(current_dataset),
+            "header_warning": header_warning,
+            "analysis": analyze_dataset(session["current_dataset"]),
         }
     except HTTPException:
         raise
@@ -130,28 +237,32 @@ async def upload_dataset(file: UploadFile = File(...)):
 
 # ─── Demo Dataset ───
 @app.get("/demo/{dataset_name}")
-def load_demo(dataset_name: str):
-    global original_dataset, current_dataset, pipeline_history, dataset_snapshots
+def load_demo(
+    dataset_name: str,
+    x_session_id: Optional[str] = Header(None, alias="X-Session-Id"),
+):
+    session = get_session(x_session_id)
     file_path = f"sample_data/{dataset_name}.csv"
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Demo dataset not found.")
-    
+
     try:
         df = pd.read_csv(file_path)
-        original_dataset = df.copy()
-        current_dataset = df.copy()
-        pipeline_history = []
-        dataset_snapshots = []
-        return {"message": f"Demo {dataset_name} loaded", "analysis": analyze_dataset(current_dataset)}
+        session["original_dataset"] = df.copy()
+        session["current_dataset"] = df.copy()
+        session["pipeline_history"] = []
+        session["dataset_snapshots"] = []
+        return {"message": f"Demo {dataset_name} loaded", "analysis": analyze_dataset(session["current_dataset"])}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 # ─── Analyze ───
 @app.get("/analyze")
-def analyze():
-    _require_dataset()
-    return analyze_dataset(current_dataset)
+def analyze(x_session_id: Optional[str] = Header(None, alias="X-Session-Id")):
+    session = get_session(x_session_id)
+    _require_dataset(session)
+    return analyze_dataset(session["current_dataset"])
 
 
 # ─── Apply preprocessing ───
@@ -223,16 +334,22 @@ def _apply_action(df: pd.DataFrame, action: str, params: dict) -> pd.DataFrame:
 
 
 @app.post("/preprocess")
-def preprocess(req: PreprocessRequest):
-    global current_dataset
-    _require_dataset()
+def preprocess(
+    req: PreprocessRequest,
+    x_session_id: Optional[str] = Header(None, alias="X-Session-Id"),
+):
+    session = get_session(x_session_id)
+    _require_dataset(session)
+
+    pipeline_history = session["pipeline_history"]
+    dataset_snapshots = session["dataset_snapshots"]
 
     try:
         # Save snapshot for undo
-        dataset_snapshots.append(current_dataset.copy())
+        dataset_snapshots.append(session["current_dataset"].copy())
 
-        new_df = _apply_action(current_dataset, req.action, req.params)
-        current_dataset = new_df
+        new_df = _apply_action(session["current_dataset"], req.action, req.params)
+        session["current_dataset"] = new_df
 
         # Record step
         step = {
@@ -242,15 +359,15 @@ def preprocess(req: PreprocessRequest):
             "timestamp": datetime.datetime.now().isoformat(),
             "rows_before": dataset_snapshots[-1].shape[0],
             "cols_before": dataset_snapshots[-1].shape[1],
-            "rows_after": current_dataset.shape[0],
-            "cols_after": current_dataset.shape[1],
+            "rows_after": session["current_dataset"].shape[0],
+            "cols_after": session["current_dataset"].shape[1],
         }
         pipeline_history.append(step)
 
         return {
             "message": f"Step {step['step']}: {req.action} applied successfully.",
             "step": step,
-            "analysis": analyze_dataset(current_dataset),
+            "analysis": analyze_dataset(session["current_dataset"]),
             "pipeline": pipeline_history,
         }
     except Exception as e:
@@ -262,16 +379,21 @@ def preprocess(req: PreprocessRequest):
 
 # ─── Preview (dry-run) ───
 @app.post("/preprocess/preview")
-def preprocess_preview(req: PreprocessRequest):
-    _require_dataset()
+def preprocess_preview(
+    req: PreprocessRequest,
+    x_session_id: Optional[str] = Header(None, alias="X-Session-Id"),
+):
+    session = get_session(x_session_id)
+    _require_dataset(session)
     try:
-        preview_df = _apply_action(current_dataset.copy(), req.action, req.params)
+        current = session["current_dataset"]
+        preview_df = _apply_action(current.copy(), req.action, req.params)
         return {
             "before": {
-                "rows": current_dataset.shape[0],
-                "cols": current_dataset.shape[1],
-                "missing": int(current_dataset.isnull().sum().sum()),
-                "analysis": analyze_dataset(current_dataset),
+                "rows": current.shape[0],
+                "cols": current.shape[1],
+                "missing": int(current.isnull().sum().sum()),
+                "analysis": analyze_dataset(current),
             },
             "after": {
                 "rows": preview_df.shape[0],
@@ -461,51 +583,57 @@ def generate_python_script(pipeline):
 
 # ─── Undo ───
 @app.post("/undo")
-def undo():
-    global current_dataset
-    _require_dataset()
-    if not dataset_snapshots:
+def undo(x_session_id: Optional[str] = Header(None, alias="X-Session-Id")):
+    session = get_session(x_session_id)
+    _require_dataset(session)
+    if not session["dataset_snapshots"]:
         raise HTTPException(status_code=400, detail="Nothing to undo.")
 
-    current_dataset = dataset_snapshots.pop()
-    removed = pipeline_history.pop() if pipeline_history else None
+    session["current_dataset"] = session["dataset_snapshots"].pop()
+    removed = session["pipeline_history"].pop() if session["pipeline_history"] else None
 
     return {
         "message": f"Undid step: {removed['action']}" if removed else "Undo done.",
-        "analysis": analyze_dataset(current_dataset),
-        "pipeline": pipeline_history,
+        "analysis": analyze_dataset(session["current_dataset"]),
+        "pipeline": session["pipeline_history"],
     }
 
 
 # ─── Reset ───
 @app.post("/reset")
-def reset():
-    global current_dataset, pipeline_history, dataset_snapshots
-    if original_dataset is None:
+def reset(x_session_id: Optional[str] = Header(None, alias="X-Session-Id")):
+    session = get_session(x_session_id)
+    if session["original_dataset"] is None:
         raise HTTPException(status_code=404, detail="No dataset uploaded.")
 
-    current_dataset = original_dataset.copy()
-    pipeline_history = []
-    dataset_snapshots = []
+    session["current_dataset"] = session["original_dataset"].copy()
+    session["pipeline_history"] = []
+    session["dataset_snapshots"] = []
 
     return {
         "message": "Dataset reset to original.",
-        "analysis": analyze_dataset(current_dataset),
+        "analysis": analyze_dataset(session["current_dataset"]),
         "pipeline": [],
     }
 
 
 # ─── Pipeline History ───
 @app.get("/pipeline")
-def get_pipeline():
-    return {"pipeline": pipeline_history}
+def get_pipeline(x_session_id: Optional[str] = Header(None, alias="X-Session-Id")):
+    session = get_session(x_session_id)
+    return {"pipeline": session["pipeline_history"]}
 
 
 # ─── Export Dataset ───
 @app.get("/export/dataset/{export_format}")
-def export_dataset(export_format: str):
-    _require_dataset()
-    
+def export_dataset(
+    export_format: str,
+    x_session_id: Optional[str] = Header(None, alias="X-Session-Id"),
+):
+    session = get_session(x_session_id)
+    _require_dataset(session)
+    current_dataset = session["current_dataset"]
+
     if export_format.lower() == "csv":
         stream = io.StringIO()
         current_dataset.to_csv(stream, index=False)
@@ -527,7 +655,7 @@ def export_dataset(export_format: str):
         response.headers["Content-Disposition"] = f"attachment; filename=cleaned_dataset.xlsx"
         return response
     elif export_format.lower() == "python":
-        script_content = generate_python_script(pipeline_history)
+        script_content = generate_python_script(session["pipeline_history"])
         response = Response(content=script_content, media_type="text/x-python")
         response.headers["Content-Disposition"] = "attachment; filename=pipeline.py"
         return response
@@ -537,8 +665,14 @@ def export_dataset(export_format: str):
 
 # ─── ELM Training ───
 @app.post("/train")
-def train_model(req: TrainELMRequest):
-    _require_dataset()
+def train_model(
+    req: TrainELMRequest,
+    x_session_id: Optional[str] = Header(None, alias="X-Session-Id"),
+):
+    session = get_session(x_session_id)
+    _require_dataset(session)
+    original_dataset = session["original_dataset"]
+    pipeline_history = session["pipeline_history"]
     if req.target_column not in original_dataset.columns:
         raise HTTPException(status_code=400, detail=f"Target column '{req.target_column}' not found.")
 
@@ -564,12 +698,23 @@ def train_model(req: TrainELMRequest):
             
             splits = []
             if req.split_strategy == "holdout":
+                # Stratify only when user opted in AND the task is classification
+                # AND we have a sample large enough that every class can appear
+                # on both sides of the split (sklearn raises otherwise).
+                stratify_arg = None
+                if req.shuffle and is_classification and req.stratify_holdout:
+                    try:
+                        min_count = pd.Series(y_raw).value_counts().min()
+                        if min_count >= 2:
+                            stratify_arg = y_raw
+                    except Exception:
+                        stratify_arg = None
                 train_idx, test_idx = train_test_split(
-                    np.arange(len(df_raw)), 
-                    test_size=req.test_size, 
-                    random_state=seed, 
+                    np.arange(len(df_raw)),
+                    test_size=req.test_size,
+                    random_state=seed,
                     shuffle=req.shuffle,
-                    stratify=y_raw if (req.shuffle and is_classification) else None
+                    stratify=stratify_arg,
                 )
                 splits.append((train_idx, test_idx))
             else:
@@ -725,15 +870,18 @@ def train_model(req: TrainELMRequest):
 
 
 @app.post("/train-finalize")
-def train_finalize(req: TrainELMRequest):
+def train_finalize(
+    req: TrainELMRequest,
+    x_session_id: Optional[str] = Header(None, alias="X-Session-Id"),
+):
     """Refined endpoint to train the final model for Module 2 prediction."""
-    _require_dataset()
-    global last_trained_info
-    
+    session = get_session(x_session_id)
+    _require_dataset(session)
+
     try:
         # We assume the user wants to train on the CURRENT dataset (after preprocessing)
         # Or you can re-run the entire pipeline from original_dataset. Let's use current_dataset.
-        df = current_dataset.copy()
+        df = session["current_dataset"].copy()
         
         # Check target
         if req.target_column not in df.columns:
@@ -768,17 +916,17 @@ def train_finalize(req: TrainELMRequest):
             
         model.fit(X_scaled, y)
         
-        # Store for real-time prediction
-        last_trained_info = {
+        # Store for real-time prediction (session-scoped)
+        session["last_trained_info"] = {
             "model": model,
             "scaler": scaler,
             "label_encoder": le,
             "features": features,
             "target": req.target_column,
             "problem_type": req.problem_type,
-            "activation": req.activation
+            "activation": req.activation,
         }
-        
+
         return {
             "message": "Model trained and finalized for prediction.",
             "features": features,
@@ -790,39 +938,44 @@ def train_finalize(req: TrainELMRequest):
 
 
 @app.post("/predict")
-def predict(req: PredictRequest):
-    """Real-time prediction using the last trained model."""
+def predict(
+    req: PredictRequest,
+    x_session_id: Optional[str] = Header(None, alias="X-Session-Id"),
+):
+    """Real-time prediction using the last trained model (per session)."""
+    session = get_session(x_session_id)
+    last_trained_info = session["last_trained_info"]
     if last_trained_info["model"] is None:
         raise HTTPException(status_code=404, detail="No model trained yet. Please train a model first.")
-        
+
     try:
         # Convert input dict to df with correct feature order
         input_data = req.data
         features = last_trained_info["features"]
-        
+
         # Check if all features exist in input
         missing = [f for f in features if f not in input_data]
         if missing:
             raise HTTPException(status_code=400, detail=f"Missing input fields: {', '.join(missing)}")
-            
+
         # Create row
         row = np.array([[float(input_data[f]) for f in features]])
-        
+
         # Scale
         row_scaled = last_trained_info["scaler"].transform(row)
-        
+
         # Model prediction
         model = last_trained_info["model"]
         prediction = model.predict(row_scaled)
-        
+
         # Convert prediction to class label if needed
         result_label = str(prediction[0])
         probabilities = {}
-        
+
         if last_trained_info["problem_type"] == "classification":
             if last_trained_info["label_encoder"]:
                 result_label = str(last_trained_info["label_encoder"].inverse_transform([prediction])[0])
-                
+
             # Try to get probabilities for display
             try:
                 # Custom prob logic for ELM
@@ -830,24 +983,218 @@ def predict(req: PredictRequest):
                 # Y = H * beta
                 H = model._activate(np.dot(row_scaled, model.input_weights_) + model.biases_)
                 y_raw = np.dot(H, model.output_weights_)
-                
+
                 # Softmax
                 exp_y = np.exp(y_raw - np.max(y_raw))
                 probs = exp_y / np.sum(exp_y)
                 probs = probs.flatten()
-                
+
                 classes = last_trained_info["label_encoder"].classes_
                 for i, cls in enumerate(classes):
                     probabilities[str(cls)] = float(probs[i])
-            except:
+            except Exception:
                 pass
-                
+
         return {
             "prediction": result_label,
             "probabilities": probabilities
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─── ELM Extras: learning curve + calibration + model export ───
+
+class LearningCurveRequest(BaseModel):
+    target_column: str
+    problem_type: str = "classification"
+    features: List[str] = []
+    hidden_nodes: int = 100
+    activation: str = "sigmoid"
+    random_seed: int = 42
+    # train_size fractions to evaluate, e.g. [0.1, 0.25, 0.5, 0.75, 1.0]
+    train_fractions: List[float] = [0.1, 0.25, 0.5, 0.75, 1.0]
+
+
+@app.post("/learning-curve")
+def learning_curve(
+    req: LearningCurveRequest,
+    x_session_id: Optional[str] = Header(None, alias="X-Session-Id"),
+):
+    """Train ELM on increasing fractions of the data; return train + holdout
+    metric per fraction so the frontend can plot a learning curve to detect
+    over/underfit visually."""
+    session = get_session(x_session_id)
+    _require_dataset(session)
+
+    df = session["current_dataset"].copy()
+    if req.target_column not in df.columns:
+        raise HTTPException(status_code=400, detail=f"Target '{req.target_column}' not found.")
+
+    features = req.features if req.features else [c for c in df.columns if c != req.target_column]
+    df = df.dropna(subset=features + [req.target_column])
+    X_full = df[features].values.astype(np.float64)
+    y_full = df[req.target_column]
+
+    is_classification = req.problem_type == "classification"
+    le = None
+    if is_classification:
+        le = LabelEncoder()
+        y_full = le.fit_transform(y_full)
+    else:
+        y_full = y_full.values.astype(np.float64)
+
+    scaler = MinMaxScaler()
+    X_full = scaler.fit_transform(X_full)
+
+    # Held-out 20% test set, fixed across all fractions for fair comparison
+    X_train_full, X_test, y_train_full, y_test = train_test_split(
+        X_full, y_full, test_size=0.2, random_state=req.random_seed,
+        stratify=y_full if (is_classification and pd.Series(y_full).value_counts().min() >= 2) else None,
+    )
+
+    points = []
+    for frac in req.train_fractions:
+        n = max(2, int(round(len(X_train_full) * frac)))
+        if is_classification:
+            uniq = np.unique(y_train_full[:n])
+            if len(uniq) < 2:
+                continue  # need ≥2 classes for classifier training
+        Xs, ys = X_train_full[:n], y_train_full[:n]
+        if is_classification:
+            model = ELMClassifier(hidden_nodes=req.hidden_nodes, activation=req.activation, random_state=req.random_seed)
+        else:
+            model = ELMRegressor(hidden_nodes=req.hidden_nodes, activation=req.activation, random_state=req.random_seed)
+        model.fit(Xs, ys)
+        # ELM models don't ship a .score() method — compute the relevant metric
+        # inline based on problem type.
+        from sklearn.metrics import r2_score
+        if is_classification:
+            train_score = float(accuracy_score(ys, model.predict(Xs)))
+            test_score = float(accuracy_score(y_test, model.predict(X_test)))
+        else:
+            train_score = float(r2_score(ys, model.predict(Xs)))
+            test_score = float(r2_score(y_test, model.predict(X_test)))
+        points.append({"train_size": int(n), "fraction": float(frac), "train_score": train_score, "test_score": test_score})
+
+    return {"problem_type": req.problem_type, "metric": "accuracy" if is_classification else "r2", "points": points}
+
+
+@app.post("/calibration")
+def calibration_curve_endpoint(
+    req: TrainELMRequest,
+    x_session_id: Optional[str] = Header(None, alias="X-Session-Id"),
+):
+    """Reliability diagram for the trained ELM. Returns one curve per binning
+    of (predicted-probability, actual-frequency) so the user can see whether
+    the model's confidence is well-calibrated. Binary classification only."""
+    session = get_session(x_session_id)
+    last = session["last_trained_info"]
+    if last["model"] is None:
+        raise HTTPException(status_code=404, detail="No finalized model — call /train-finalize first.")
+    if last["problem_type"] != "classification" or not last["label_encoder"] or len(last["label_encoder"].classes_) != 2:
+        raise HTTPException(status_code=400, detail="Calibration curve is only defined for binary classifiers.")
+
+    df = session["current_dataset"].copy()
+    df = df.dropna(subset=last["features"] + [last["target"]])
+    X = last["scaler"].transform(df[last["features"]])
+    y_true = last["label_encoder"].transform(df[last["target"]])
+
+    model = last["model"]
+    H = model._activate(np.dot(X, model.input_weights_) + model.biases_)
+    raw = np.dot(H, model.output_weights_)
+    if raw.ndim == 1:
+        probs = 1.0 / (1.0 + np.exp(-raw))  # sigmoid
+    else:
+        # softmax → take prob of positive class
+        ex = np.exp(raw - raw.max(axis=1, keepdims=True))
+        probs = (ex / ex.sum(axis=1, keepdims=True))[:, 1]
+
+    n_bins = 10
+    bins = np.linspace(0.0, 1.0, n_bins + 1)
+    points = []
+    for i in range(n_bins):
+        mask = (probs >= bins[i]) & (probs < bins[i + 1] if i < n_bins - 1 else probs <= bins[i + 1])
+        if mask.sum() == 0:
+            continue
+        points.append({
+            "bin_low": float(bins[i]),
+            "bin_high": float(bins[i + 1]),
+            "mean_predicted": float(probs[mask].mean()),
+            "fraction_positive": float(y_true[mask].mean()),
+            "count": int(mask.sum()),
+        })
+
+    return {"points": points, "n_samples": int(len(probs))}
+
+
+@app.get("/model/export")
+def export_model(x_session_id: Optional[str] = Header(None, alias="X-Session-Id")):
+    """Download the finalized model as a joblib bundle (model + scaler + label encoder + features).
+    The frontend can use this to reload weights or run external evaluations."""
+    session = get_session(x_session_id)
+    last = session["last_trained_info"]
+    if last["model"] is None:
+        raise HTTPException(status_code=404, detail="No finalized model.")
+
+    try:
+        import joblib
+    except ImportError:
+        raise HTTPException(status_code=500, detail="joblib is missing. pip install joblib.")
+
+    bundle = {
+        "model": last["model"],
+        "scaler": last["scaler"],
+        "label_encoder": last["label_encoder"],
+        "features": last["features"],
+        "target": last["target"],
+        "problem_type": last["problem_type"],
+        "activation": last["activation"],
+        "exported_at": datetime.datetime.utcnow().isoformat() + "Z",
+    }
+    buf = io.BytesIO()
+    joblib.dump(bundle, buf)
+    response = Response(content=buf.getvalue(), media_type="application/octet-stream")
+    response.headers["Content-Disposition"] = "attachment; filename=elm_model.joblib"
+    return response
+
+
+# ─── Tabular Classification stubs (Coming Soon — wired so the frontend
+#     contract is stable when we activate scikit-learn classifiers later) ───
+
+class TabularInferenceRequest(BaseModel):
+    """Generic schema-validated tabular input — every tabular task uses this.
+
+    `features` is a flat dict {feature_name: value}. Validation against the
+    per-task schema lives in /tabular/schema and on the frontend; the backend
+    just routes by problem id once the classifiers are wired up.
+    """
+    features: dict
+
+
+# Kept simple on purpose: each tabular task gets the same response shape so
+# the frontend can render a uniform results panel. When we go live, swap the
+# 503 body for actual scikit-learn predictions.
+def _tabular_unavailable(problem: str) -> HTTPException:
+    return HTTPException(
+        status_code=503,
+        detail=f"Tabular task '{problem}' is coming soon. The frontend contract is stable; scikit-learn weights are pending.",
+    )
+
+
+@app.post("/tabular/predict-titanic")
+def predict_titanic_stub(req: TabularInferenceRequest):
+    raise _tabular_unavailable("titanic-survival")
+
+
+@app.post("/tabular/predict-heart")
+def predict_heart_stub(req: TabularInferenceRequest):
+    raise _tabular_unavailable("heart-disease")
+
+
+@app.post("/tabular/predict-wine")
+def predict_wine_stub(req: TabularInferenceRequest):
+    raise _tabular_unavailable("wine-quality")
 
 
 # ─── Category 3: Image Classification (EfficientNetV2-S) ───

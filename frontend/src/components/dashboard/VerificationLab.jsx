@@ -5,6 +5,7 @@ import { ShieldCheck } from 'lucide-react'
 import PageHeader from './elm/PageHeader'
 import { VerifySVG } from './elm/AnimatedSVGs'
 import { API_BASE } from '../../lib/constants'
+import { useApp } from '../../context/AppContext'
 
 const API = API_BASE
 
@@ -30,6 +31,7 @@ const Plot = ({ id, data, layout, style }) => {
 }
 
 export default function VerificationLab({ module = 'forensic', analysis, pipeline = [] }) {
+  const { forensic, setForensicData } = useApp()
   const a = analysis
   const numericCols = a?.column_types?.numeric || []
   const categoricalCols = a?.column_types?.categorical || []
@@ -51,10 +53,13 @@ export default function VerificationLab({ module = 'forensic', analysis, pipelin
   const [hiddenNodes, setHiddenNodes] = useState(100)
   const [activation, setActivation] = useState('sigmoid')
   const [repeats, setRepeats] = useState(1)
+  const [stratifyHoldout, setStratifyHoldout] = useState(true)
 
   // --- UI States ---
   const [loading, setLoading] = useState(false)
-  const [results, setResults] = useState(null)
+  // results is persisted in AppContext (forensic.verificationResults) so it survives navigation
+  const results = forensic?.verificationResults ?? null
+  const setResults = (next) => setForensicData({ verificationResults: next })
   const [error, setError] = useState(null)
   const [activeTab, setActiveTab] = useState('summary')
 
@@ -97,9 +102,26 @@ export default function VerificationLab({ module = 'forensic', analysis, pipelin
         random_seed: parseInt(randomSeed),
         hidden_nodes: parseInt(hiddenNodes),
         activation: activation,
-        repeats: parseInt(repeats)
+        repeats: parseInt(repeats),
+        stratify_holdout: stratifyHoldout,
       })
-      setResults(resp.data)
+      const enriched = {
+        ...resp.data,
+        // Local metadata for "Compare Runs" — id + timestamp + config snapshot
+        run_id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `run-${Date.now()}`,
+        run_label: `Run @ ${new Date().toLocaleTimeString()}`,
+        ran_at: new Date().toISOString(),
+        config: {
+          target: targetColumn, problemType, splitStrategy,
+          numFolds, testSize, shuffle, randomSeed,
+          hiddenNodes, activation, repeats, stratifyHoldout,
+        },
+      }
+      setResults(enriched)
+      // Append to local Compare-Runs history (cap 10) — persisted via AppContext
+      setForensicData({
+        verificationRunHistory: [enriched, ...(forensic?.verificationRunHistory ?? [])].slice(0, 10),
+      })
     } catch (err) {
       setError(err.response?.data?.detail || err.message || 'Error during ELM model training')
     } finally {
@@ -344,11 +366,26 @@ export default function VerificationLab({ module = 'forensic', analysis, pipelin
             </div>
 
             {splitStrategy === 'holdout' ? (
-              <div className="input-group" style={{ marginTop: '1rem' }}>
-                <label className="input-label">Test Set Size: {Math.round(testSize * 100)}%</label>
-                <input type="range" className="input-field" min="0.05" max="0.5" step="0.05" value={testSize}
-                  onChange={e => setTestSize(parseFloat(e.target.value))} />
-              </div>
+              <>
+                <div className="input-group" style={{ marginTop: '1rem' }}>
+                  <label className="input-label">Test Set Size: {Math.round(testSize * 100)}%</label>
+                  <input type="range" className="input-field" min="0.05" max="0.5" step="0.05" value={testSize}
+                    onChange={e => setTestSize(parseFloat(e.target.value))} />
+                </div>
+                {problemType === 'classification' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginTop: '0.75rem' }}>
+                    <input
+                      type="checkbox"
+                      id="stratify_holdout"
+                      checked={stratifyHoldout}
+                      onChange={e => setStratifyHoldout(e.target.checked)}
+                    />
+                    <label htmlFor="stratify_holdout" className="input-label" style={{ marginBottom: 0 }}>
+                      Stratify split (preserve class proportions)
+                    </label>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="input-group" style={{ marginTop: '1rem' }}>
                 <label className="input-label">Number of Folds</label>
@@ -504,6 +541,96 @@ export default function VerificationLab({ module = 'forensic', analysis, pipelin
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Save Model + Compare Runs panel */}
+          {results && (
+            <div className="glass-panel" style={{ padding: '1rem', marginTop: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-secondary)', margin: 0 }}>
+                  Run Actions
+                </h4>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <a
+                    href={`${API}/model/export`}
+                    onClick={async (e) => {
+                      // Train-finalize first so the backend has weights to export
+                      try {
+                        await axios.post(`${API}/train-finalize`, {
+                          target_column: targetColumn,
+                          problem_type: problemType,
+                          features: [],
+                          hidden_nodes: parseInt(hiddenNodes),
+                          activation,
+                          random_seed: parseInt(randomSeed),
+                        })
+                      } catch (err) {
+                        e.preventDefault()
+                        alert(err?.response?.data?.detail || 'Could not finalize model — see backend log.')
+                      }
+                    }}
+                    style={{
+                      padding: '0.5rem 0.9rem', borderRadius: 8,
+                      background: 'rgba(99,102,241,0.15)', color: '#a5b4fc',
+                      border: '1px solid rgba(99,102,241,0.25)',
+                      textDecoration: 'none', fontSize: '0.82rem', fontWeight: 600,
+                    }}
+                  >
+                    💾 Save Model (.joblib)
+                  </a>
+                </div>
+              </div>
+
+              {/* Compare runs — last N runs in a tiny table */}
+              {(forensic?.verificationRunHistory ?? []).length > 1 && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+                    Recent runs (last 10):
+                  </p>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                      <thead>
+                        <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
+                          <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600 }}>When</th>
+                          <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600 }}>Strategy</th>
+                          <th style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 600 }}>Hidden</th>
+                          <th style={{ padding: '6px 10px', textAlign: 'left',  fontWeight: 600 }}>Activation</th>
+                          <th style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 600 }}>
+                            {problemType === 'classification' ? 'Accuracy' : 'R²'}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(forensic.verificationRunHistory ?? []).map((run) => {
+                          const k = problemType === 'classification' ? 'accuracy' : 'r2'
+                          const m = run.summary?.[k]?.mean
+                          const isCurrent = run.run_id === results?.run_id
+                          return (
+                            <tr key={run.run_id} style={{ borderTop: '1px solid rgba(255,255,255,0.04)', background: isCurrent ? 'rgba(99,102,241,0.08)' : 'transparent' }}>
+                              <td style={{ padding: '6px 10px' }}>
+                                {isCurrent ? '★ ' : ''}
+                                {new Date(run.ran_at).toLocaleTimeString()}
+                              </td>
+                              <td style={{ padding: '6px 10px', color: 'var(--text-muted)' }}>
+                                {run.config?.splitStrategy}
+                                {run.config?.splitStrategy === 'holdout'
+                                  ? ` (${Math.round((run.config.testSize ?? 0.2) * 100)}%)`
+                                  : ` (k=${run.config?.numFolds ?? 5})`}
+                              </td>
+                              <td style={{ padding: '6px 10px', textAlign: 'right' }}>{run.config?.hiddenNodes}</td>
+                              <td style={{ padding: '6px 10px' }}>{run.config?.activation}</td>
+                              <td style={{ padding: '6px 10px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                                {typeof m === 'number' ? (k === 'accuracy' ? `${(m * 100).toFixed(2)}%` : m.toFixed(4)) : '—'}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Empty State */}
           {!results && !loading && !error && (

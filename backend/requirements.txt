@@ -7,6 +7,8 @@ imbalanced-learn
 python-multipart
 scipy
 openpyxl
+joblib
+pyarrow
 torch
 torchvision
 Pillow
