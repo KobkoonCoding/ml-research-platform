@@ -4,6 +4,7 @@ import {
   Mail, FolderGit2, Briefcase, GraduationCap, BookOpen, MapPin,
   Code2, Zap, Layers, Cpu, Database, Globe, ScrollText, Scale, AlertTriangle
 } from 'lucide-react'
+import SEO from '../components/SEO'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -94,6 +95,22 @@ export default function AboutPage() {
       variants={stagger}
       className="space-y-8"
     >
+      <SEO
+        path="/about"
+        title="About — Dr. Kobkoon Janngam"
+        description="Researcher profile, BibTeX citation, dataset acknowledgements, and full licensing matrix for the NEXUS ML Research Platform — Department of Mathematics, Chiang Mai University."
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'AboutPage',
+          mainEntity: {
+            '@type': 'Person',
+            name: 'Dr. Kobkoon Janngam',
+            jobTitle: 'Researcher',
+            affiliation: { '@type': 'EducationalOrganization', name: 'Chiang Mai University' },
+            knowsAbout: ['Mathematical Optimization', 'Fixed-Point Theory', 'Machine Learning', 'Extreme Learning Machine'],
+          },
+        }}
+      />
       {/* Page header — clearly distinct from the marketing-style Landing page.
           This page exists to document WHO built the platform, citations, and
           licensing — not to re-pitch the product. */}

@@ -7,6 +7,82 @@ import {
 } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import DeveloperCard from '../components/landing/DeveloperCard'
+import SEO from '../components/SEO'
+
+// JSON-LD: ItemList of the three core modules. Helps search engines and
+// LLMs understand the platform structure.
+const LANDING_JSON_LD = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebSite',
+      '@id': 'https://ml-research-platform.vercel.app/#website',
+      url: 'https://ml-research-platform.vercel.app/',
+      name: 'NEXUS — ML Research Platform',
+      inLanguage: 'en',
+      publisher: { '@id': 'https://ml-research-platform.vercel.app/#person' },
+    },
+    {
+      '@type': 'Person',
+      '@id': 'https://ml-research-platform.vercel.app/#person',
+      name: 'Dr. Kobkoon Janngam',
+      affiliation: { '@type': 'EducationalOrganization', name: 'Chiang Mai University' },
+      jobTitle: 'Researcher',
+    },
+    {
+      '@type': 'ItemList',
+      name: 'Platform modules',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Data Forensic & Cleaning',
+          url: 'https://ml-research-platform.vercel.app/forensic',
+          description: 'Automated EDA + leakage-safe preprocessing pipeline.' },
+        { '@type': 'ListItem', position: 2, name: 'ELM Studio',
+          url: 'https://ml-research-platform.vercel.app/elm-studio',
+          description: 'Train Extreme Learning Machine models with cross-validation.' },
+        { '@type': 'ListItem', position: 3, name: 'AI Model Hub',
+          url: 'https://ml-research-platform.vercel.app/deep-learning',
+          description: 'Pretrained image classification, medical imaging, and object detection.' },
+      ],
+    },
+    {
+      '@type': 'FAQPage',
+      mainEntity: [
+        {
+          '@type': 'Question',
+          name: 'What is NEXUS?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'NEXUS is a no-code research platform fusing mathematical optimization with machine learning. It covers data cleaning, ELM training, and pretrained AI inference.',
+          },
+        },
+        {
+          '@type': 'Question',
+          name: 'Who built it?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'Dr. Kobkoon Janngam at the Department of Mathematics, Chiang Mai University. The platform is a research showcase, not a commercial product.',
+          },
+        },
+        {
+          '@type': 'Question',
+          name: 'What is Extreme Learning Machine (ELM)?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'ELM is a single-hidden-layer feedforward network whose input weights are fixed randomly while the output weights are computed in closed form via the Moore-Penrose pseudo-inverse. Training is orders of magnitude faster than backpropagation.',
+          },
+        },
+        {
+          '@type': 'Question',
+          name: 'Can I use the medical imaging models for diagnosis?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'No. The medical-imaging models are research-only pattern-matching tools and are not FDA-cleared. Only qualified specialists can diagnose medical images.',
+          },
+        },
+      ],
+    },
+  ],
+}
 
 const Spline = lazy(() => import('@splinetool/react-spline'))
 
@@ -447,6 +523,12 @@ export default function LandingPage() {
 
   return (
     <div className="relative font-sans bg-[#050505] text-white selection:bg-primary/30" data-theme="dark">
+      <SEO
+        path="/"
+        title="NEXUS — ML Research Platform · Mathematical Optimization for Machine Learning"
+        description="No-code ML research platform fusing mathematical optimization with machine learning — data cleaning, Extreme Learning Machine training, and pretrained AI inference (image, medical, object detection). Built by Dr. Kobkoon Janngam, Chiang Mai University."
+        jsonLd={LANDING_JSON_LD}
+      />
 
       {/* Ambient gradient blobs — mobile uses smaller blur to keep FPS up */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden" aria-hidden>

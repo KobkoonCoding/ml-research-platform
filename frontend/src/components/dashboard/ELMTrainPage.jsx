@@ -72,12 +72,10 @@ export default function ELMTrainPage() {
   const numFeatures = features.length || 1
   const maxHidden = Math.min(10 * numFeatures, rows)
 
-  // Heuristic: ~ √(features × samples), clipped to the [features, 10×features] range
-  // (the recommended ELM band). Adapts to dataset size instead of a static 100.
-  const adaptiveDefault = Math.max(
-    numFeatures,
-    Math.min(maxHidden, Math.round(Math.sqrt(numFeatures * rows)))
-  )
+  // Default = 10 × features, capped by available samples. This is the
+  // upper-end of the recommended ELM band and tends to be a good starting
+  // point — users can lower it if they hit overfitting.
+  const adaptiveDefault = maxHidden
 
   const config = neural.trainingConfig ?? {}
   const problemType = config.problemType ?? 'classification'
@@ -258,7 +256,8 @@ export default function ELMTrainPage() {
                 onChange={e => updateConfig({ hiddenNodes: e.target.value })}
               />
               <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
-                Recommended: {numFeatures}\u2013{maxHidden} (d to min(10d, n))
+                Recommended: {numFeatures} to {maxHidden} (d to min(10d, n)) &middot;{' '}
+                d = {numFeatures} features, n = {rows} samples &middot; default = 10d capped at n
               </p>
             </div>
 
@@ -268,7 +267,6 @@ export default function ELMTrainPage() {
                 <option value="sigmoid">Sigmoid</option>
                 <option value="relu">ReLU</option>
                 <option value="tanh">Tanh</option>
-                <option value="sine">Sine</option>
               </select>
             </div>
           </div>

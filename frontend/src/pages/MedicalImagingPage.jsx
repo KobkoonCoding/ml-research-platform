@@ -19,6 +19,7 @@ import {
   Activity, ShieldCheck, Upload, ScanEye, Brain, AlertCircle, Zap, Gauge,
   AlertTriangle, Info, HelpCircle, ChevronDown
 } from 'lucide-react'
+import SEO from '../components/SEO'
 
 // ─── Module-level config (hoisted out of component to avoid re-allocation per render) ───
 
@@ -270,6 +271,11 @@ export default function MedicalImagingPage() {
 
   return (
     <motion.div initial="hidden" animate="visible" variants={stagger} className="space-y-8 pb-12">
+      <SEO
+        path="/deep-learning/medical-imaging"
+        title="Medical Imaging — Chest X-ray, Skin Lesion, Brain MRI"
+        description="Research-only AI analysis: chest X-ray (torchxrayvision DenseNet121, 18 pathologies, Grad-CAM), skin-lesion ViT classifier, brain-tumor MRI ViT — with attention visualizations. Not for clinical diagnosis."
+      />
       {/* Header */}
       <motion.div variants={fadeUp} className="glass-panel rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-10 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-80 h-80 bg-error/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2" />

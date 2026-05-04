@@ -1,0 +1,93 @@
+# NEXUS — ML Research Platform
+
+> A no-code research platform fusing **mathematical optimization** with
+> machine learning. Built by Dr. Kobkoon Janngam at the Department of
+> Mathematics, Chiang Mai University. Used as a showcase for fixed-point
+> ELM (Extreme Learning Machine) reformulated as a convex minimization
+> problem, with end-to-end data cleaning and pretrained AI inference.
+
+The platform is split into three modules. Each module is a fully working
+research demo intended for academic exploration — not a commercial product.
+
+## Quick facts
+
+- **Author**: Dr. Kobkoon Janngam, Chiang Mai University
+- **Domain**: https://ml-research-platform.vercel.app/
+- **Type**: Web application (research showcase)
+- **Stack**: React 19 + Vite + Tailwind frontend, FastAPI + scikit-learn + PyTorch backend
+- **License**: Research/academic use; bundled YOLOv8 is AGPL-3.0
+- **Target audience**: ML researchers, optimization theorists, graduate students
+
+## Modules
+
+### Module 1 — Data Forensic & Cleaning
+- URL: https://ml-research-platform.vercel.app/forensic
+- Purpose: Automated EDA + preprocessing pipeline (missing values, outliers,
+  scaling, encoding, feature selection, imbalance handling, drop columns)
+- Key features: Per-fold leakage-safe transforms, K-Fold/Stratified/Holdout
+  cross-validation, Pearson/Spearman/Kendall correlation, distribution stats
+  (skewness/kurtosis), Cramér's V categorical association, before/after
+  preview, undo, export to CSV/Excel/Python script
+
+### Module 2 — ELM Studio
+- URL: https://ml-research-platform.vercel.app/elm-studio
+- Purpose: Train Extreme Learning Machine models via closed-form
+  least-squares (Moore-Penrose pseudo-inverse), with future support for
+  fixed-point + convex-reformulation training (Janngam et al., in progress)
+- Key features: Adaptive hidden-node defaults (10×features), 3 activation
+  functions (sigmoid/relu/tanh), live cross-validation metrics, learning
+  curve, calibration diagram, model export as .joblib bundle
+
+### Module 3 — AI Model Hub
+- URL: https://ml-research-platform.vercel.app/deep-learning
+- Purpose: Curated pretrained AI models for vision tasks
+- Image Classification: ImageNet (EfficientNetV2-S, 83.9% top-1), Food-101, Birds-525
+- Medical Imaging: Chest X-ray (torchxrayvision DenseNet121, 18 pathologies)
+  with Grad-CAM attention; Skin-lesion ViT classifier; Brain-tumor MRI ViT
+- Object Detection: YOLOv8n animal detection, 17-keypoint pose estimation,
+  80-class general COCO objects (AGPL-3.0)
+- Tabular: Coming soon (Titanic survival, heart disease, wine quality)
+
+## Citation
+
+```bibtex
+@misc{nexus_ml_research_platform_2026,
+  title  = {NEXUS — ML Research Platform},
+  author = {Kobkoon Janngam},
+  year   = {2026},
+  note   = {Research showcase, Department of Mathematics, Chiang Mai University},
+  url    = {https://ml-research-platform.vercel.app/}
+}
+```
+
+## Key research themes
+
+- Mathematical optimization for machine learning
+- Fixed-point algorithms and Banach contraction principle
+- Extreme Learning Machine convex reformulation
+- Pipeline-bound preprocessing (zero data leakage in cross-validation)
+- Pretrained model inference with attention visualization (Grad-CAM)
+
+## Important pages for crawlers
+
+- [/](https://ml-research-platform.vercel.app/): Landing page with the three modules and platform overview
+- [/forensic](https://ml-research-platform.vercel.app/forensic): Data Forensic module entry
+- [/elm-studio](https://ml-research-platform.vercel.app/elm-studio): ELM Studio module entry
+- [/deep-learning](https://ml-research-platform.vercel.app/deep-learning): AI Model Hub
+- [/docs](https://ml-research-platform.vercel.app/docs): Step-by-step documentation
+- [/about](https://ml-research-platform.vercel.app/about): Researcher profile, BibTeX citation, dataset acknowledgements, full licensing matrix
+
+## Acknowledgements
+
+- ImageNet (Russakovsky et al., 2015) — EfficientNetV2-S backbone
+- COCO 2017 (Lin et al., 2014) — YOLOv8 detection
+- torchxrayvision (Cohen et al., 2022) — chest X-ray classifier
+- ISIC 2019 — skin-lesion benchmark
+- scikit-learn (Pedregosa et al., 2011) — preprocessing + base classifiers
+- PyTorch + torchvision (Paszke et al., 2019)
+
+## Disclaimer
+
+All medical-imaging models are research-only pattern-matching tools.
+They are NOT FDA-cleared and must NOT be used for clinical diagnosis.
+Only qualified specialists can diagnose medical images.

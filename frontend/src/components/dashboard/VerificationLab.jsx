@@ -441,7 +441,6 @@ export default function VerificationLab({ module = 'forensic', analysis, pipelin
                 <option value="sigmoid">Sigmoid</option>
                 <option value="relu">ReLU</option>
                 <option value="tanh">Tanh</option>
-                <option value="sine">Sine</option>
               </select>
             </div>
           </div>

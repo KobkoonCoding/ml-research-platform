@@ -1,0 +1,57 @@
+# NEXUS — ML Research Platform
+# https://ml-research-platform.vercel.app/
+
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://ml-research-platform.vercel.app/sitemap.xml
+
+# LLM-friendly content manifest (https://llmstxt.org/)
+# Crawlers and language models can use llms.txt for a curated index of pages.
+
+# Allow all reputable crawlers + LLM bots explicitly.
+# (No-op since `User-agent: *` already allows them, but listing is helpful
+# for transparency and lets us tune any one bot in the future.)
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: cohere-ai
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: Twitterbot
+Allow: /
