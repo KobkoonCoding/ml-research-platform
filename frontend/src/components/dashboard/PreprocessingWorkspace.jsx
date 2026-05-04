@@ -29,17 +29,41 @@ const Plot = ({ id, data, layout, style }) => {
 }
 
 /* ─── Tool definitions ─── */
+// `kind: 'global'` → applied once to the whole dataset (safe; no leakage risk)
+// `kind: 'per-fold'` → backend learns parameters from training folds only and
+//    applies them to validation folds during CV (leakage-safe via cv_pipeline.py)
+// `kind: 'per-fold-target'` → uses the target column → must NOT be peeked at
+//    test time. SMOTE belongs here.
 const TOOLS = [
-  { id: 'missing', label: 'Missing Values', icon: '🩹', color: '#f59e0b' },
-  { id: 'duplicates', label: 'Duplicates', icon: '📑', color: '#3b82f6' },
-  { id: 'outliers', label: 'Outliers', icon: '📐', color: '#8b5cf6' },
-  { id: 'type_cleaning', label: 'Type Cleaning', icon: '🔤', color: '#06b6d4' },
-  { id: 'encoding', label: 'Encoding', icon: '🏷️', color: '#ec4899' },
-  { id: 'scaling', label: 'Scaling', icon: '📏', color: '#10b981' },
-  { id: 'imbalance', label: 'Imbalanced Data', icon: '⚖️', color: '#f97316' },
-  { id: 'feature_selection', label: 'Feature Selection', icon: '🔍', color: '#6366f1' },
-  { id: 'drop_columns', label: 'Drop Columns', icon: '🗑️', color: '#ef4444' },
+  { id: 'missing',           label: 'Missing Values',     icon: '🩹', color: '#f59e0b', kind: 'per-fold' },
+  { id: 'duplicates',        label: 'Duplicates',         icon: '📑', color: '#3b82f6', kind: 'global' },
+  { id: 'outliers',          label: 'Outliers',           icon: '📐', color: '#8b5cf6', kind: 'per-fold' },
+  { id: 'type_cleaning',     label: 'Type Cleaning',      icon: '🔤', color: '#06b6d4', kind: 'global' },
+  { id: 'encoding',          label: 'Encoding',           icon: '🏷️', color: '#ec4899', kind: 'per-fold' },
+  { id: 'scaling',           label: 'Scaling',            icon: '📏', color: '#10b981', kind: 'per-fold' },
+  { id: 'imbalance',         label: 'Imbalanced Data',    icon: '⚖️', color: '#f97316', kind: 'per-fold-target' },
+  { id: 'feature_selection', label: 'Feature Selection',  icon: '🔍', color: '#6366f1', kind: 'per-fold-target' },
+  { id: 'drop_columns',      label: 'Drop Columns',       icon: '🗑️', color: '#ef4444', kind: 'global' },
 ]
+
+// Map skew magnitude → safer default imputation strategy.
+// Heavily-skewed numeric columns get median (robust to outliers); symmetric
+// numeric stays on mean; pure categorical falls back to mode.
+function suggestMissingStrategy(analysis, columns) {
+  const numericCols = analysis?.column_types?.numeric || []
+  const distStats = analysis?.distribution_stats || {}
+  const targets = (columns && columns.length > 0) ? columns : Object.keys(analysis?.missing_values || {})
+  if (targets.length === 0) return 'mean'
+
+  const numericTargets = targets.filter((c) => numericCols.includes(c))
+  if (numericTargets.length === 0) return 'mode' // all categorical
+  // If any numeric target is highly skewed, prefer median
+  const skewed = numericTargets.some((c) => {
+    const s = distStats[c]?.skewness
+    return typeof s === 'number' && Math.abs(s) > 1
+  })
+  return skewed ? 'median' : 'mean'
+}
 
 /* ─── Main Component ─── */
 export default function PreprocessingWorkspace({ analysis, onAnalysisUpdate, pipeline, setPipeline, onNavigateToVerify, module }) {
@@ -50,8 +74,10 @@ export default function PreprocessingWorkspace({ analysis, onAnalysisUpdate, pip
   const [error, setError] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
 
-  // Tool-specific state
-  const [missingStrategy, setMissingStrategy] = useState('mean')
+  // Tool-specific state.
+  // Initial missing strategy is dataset-aware: median for skewed numeric, mean
+  // for symmetric numeric, mode if all targets are categorical.
+  const [missingStrategy, setMissingStrategy] = useState(() => suggestMissingStrategy(analysis, []))
   const [missingCols, setMissingCols] = useState([])
   const [dupKeep, setDupKeep] = useState('first')
   const [outlierMethod, setOutlierMethod] = useState('iqr')
@@ -866,17 +892,41 @@ export default function PreprocessingWorkspace({ analysis, onAnalysisUpdate, pip
       <div className="workspace-main">
         {/* ─── Left Sidebar: Tool List ─── */}
         <div className="workspace-sidebar">
-          {TOOLS.map(t => (
-            <button
-              key={t.id}
-              className={`sidebar-tool ${activeTool === t.id ? 'active' : ''}`}
-              onClick={() => { setActiveTool(t.id); clearMessages() }}
-              style={activeTool === t.id ? { borderLeftColor: t.color, background: `${t.color}15` } : undefined}
-            >
-              <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>{t.icon}</span>
-              <span>{t.label}</span>
-            </button>
-          ))}
+          {TOOLS.map(t => {
+            const kindLabel = t.kind === 'global' ? 'GLOBAL' : t.kind === 'per-fold-target' ? 'TARGET' : 'PER-FOLD'
+            const kindColor = t.kind === 'global' ? '#10b981' : t.kind === 'per-fold-target' ? '#f59e0b' : '#6366f1'
+            const kindHelp = t.kind === 'global'
+              ? 'Applied once to the whole dataset (no leakage risk)'
+              : t.kind === 'per-fold-target'
+                ? 'Uses target column — backend ensures it only sees training folds'
+                : 'Backend learns parameters on training folds, applies to validation folds'
+            return (
+              <button
+                key={t.id}
+                className={`sidebar-tool ${activeTool === t.id ? 'active' : ''}`}
+                onClick={() => { setActiveTool(t.id); clearMessages() }}
+                style={activeTool === t.id ? { borderLeftColor: t.color, background: `${t.color}15` } : undefined}
+                title={kindHelp}
+              >
+                <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>{t.icon}</span>
+                <span style={{ flex: 1 }}>{t.label}</span>
+                <span
+                  style={{
+                    fontSize: '0.55rem',
+                    fontWeight: 800,
+                    letterSpacing: '0.08em',
+                    padding: '2px 5px',
+                    borderRadius: 4,
+                    color: kindColor,
+                    background: `${kindColor}18`,
+                    border: `1px solid ${kindColor}40`,
+                  }}
+                >
+                  {kindLabel}
+                </span>
+              </button>
+            )
+          })}
         </div>
 
         {/* ─── Center: Config + Preview ─── */}

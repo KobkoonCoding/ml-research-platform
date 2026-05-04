@@ -1,7 +1,39 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
+import axios from 'axios'
 import { SESSION_KEY, SESSION_EXPIRY_MS } from '../lib/constants'
+import api from '../lib/api'
 
 const AppContext = createContext()
+
+const SESSION_ID_KEY = 'ml_session_id'
+
+/**
+ * Generate (or retrieve) a per-tab session id and install it as the default
+ * X-Session-Id header on every axios request — so the FastAPI backend can
+ * isolate dataset / pipeline / trained-model state between concurrent demos.
+ *
+ * Uses sessionStorage so each browser tab gets its own session (closed tab
+ * = session abandoned). Falls back to a Math.random id when crypto.randomUUID
+ * is unavailable (very old browsers).
+ */
+function ensureSessionId() {
+  if (typeof window === 'undefined') return 'default'
+  try {
+    let id = window.sessionStorage.getItem(SESSION_ID_KEY)
+    if (!id) {
+      id = (window.crypto?.randomUUID?.()) ||
+        `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+      window.sessionStorage.setItem(SESSION_ID_KEY, id)
+    }
+    return id
+  } catch {
+    return 'default'
+  }
+}
+
+const sessionId = ensureSessionId()
+axios.defaults.headers.common['X-Session-Id'] = sessionId
+api.defaults.headers.common['X-Session-Id'] = sessionId
 
 export function AppProvider({ children }) {
   // Category 1: Forensic State
@@ -10,7 +42,10 @@ export function AppProvider({ children }) {
     originalAnalysis: null,
     pipeline: [],
     targetColumn: '',
-    verificationResults: null
+    verificationResults: null,
+    // Recent verification runs (capped at 10) — used for the "Compare Runs"
+    // table in VerificationLab. Persisted via the localStorage save effect below.
+    verificationRunHistory: []
   })
 
   // Category 2: Neural Engine State
@@ -32,6 +67,8 @@ export function AppProvider({ children }) {
       repeats: 1
     },
     trainingResults: null,
+    // Recent ELM Studio runs — same shape as forensic.verificationRunHistory.
+    trainingRunHistory: [],
     inferenceModel: null // For persistent weights
   })
 

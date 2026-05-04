@@ -72,9 +72,16 @@ export default function ELMTrainPage() {
   const numFeatures = features.length || 1
   const maxHidden = Math.min(10 * numFeatures, rows)
 
+  // Heuristic: ~ √(features × samples), clipped to the [features, 10×features] range
+  // (the recommended ELM band). Adapts to dataset size instead of a static 100.
+  const adaptiveDefault = Math.max(
+    numFeatures,
+    Math.min(maxHidden, Math.round(Math.sqrt(numFeatures * rows)))
+  )
+
   const config = neural.trainingConfig ?? {}
   const problemType = config.problemType ?? 'classification'
-  const hiddenNodes = config.hiddenNodes ?? 100
+  const hiddenNodes = config.hiddenNodes ?? adaptiveDefault
   const activation = config.activation ?? 'sigmoid'
   const splitStrategy = config.splitStrategy ?? 'kfold'
   const numFolds = config.numFolds ?? 5
@@ -124,7 +131,22 @@ export default function ELMTrainPage() {
         activation,
         repeats: parseInt(repeats, 10),
       })
-      setNeuralData({ trainingResults: resp.data })
+      const enriched = {
+        ...resp.data,
+        run_id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `run-${Date.now()}`,
+        ran_at: new Date().toISOString(),
+        config: {
+          target: neural.targetColumn,
+          problemType, splitStrategy,
+          numFolds, testSize, shuffle, randomSeed,
+          hiddenNodes, activation, repeats,
+          features,
+        },
+      }
+      setNeuralData({
+        trainingResults: enriched,
+        trainingRunHistory: [enriched, ...(neural?.trainingRunHistory ?? [])].slice(0, 10),
+      })
     } catch (err) {
       setError(err.response?.data?.detail || err.message || 'Training failed')
     } finally {

@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/react'
 import { SpeedInsights } from '@vercel/speed-insights/react'
 import { ThemeProvider } from './context/ThemeContext'
 import { AppProvider, useApp } from './context/AppContext'
+import ErrorBoundary from './components/ErrorBoundary'
 
 // Layouts
 import DashboardLayout from './components/layout/DashboardLayout'
@@ -38,10 +39,11 @@ const Placeholder = ({ title }) => (
 
 function App() {
   return (
-    <BrowserRouter>
-      <ThemeProvider>
-        <AppProvider>
-          <Routes>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <ThemeProvider>
+          <AppProvider>
+            <Routes>
             <Route path="/" element={<LandingPage />} />
 
             {/* MODULE 1: DATA FORENSIC */}
@@ -85,13 +87,14 @@ function App() {
               <Route index element={<AboutPage />} />
             </Route>
 
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </AppProvider>
-      </ThemeProvider>
-      <Analytics />
-      <SpeedInsights />
-    </BrowserRouter>
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </AppProvider>
+        </ThemeProvider>
+        <Analytics />
+        <SpeedInsights />
+      </BrowserRouter>
+    </ErrorBoundary>
   )
 }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, ChevronRight, ArrowRight, Search, Table2, BarChart3, AlertTriangle, CheckCircle2, Target, Grid3x3, TrendingUp, PieChart } from 'lucide-react'
 import PageHeader from './elm/PageHeader'
@@ -87,12 +87,16 @@ export default function EDADashboard({ analysis, targetColumn, onTargetChange, o
   const [selectedBoxCol, setSelectedBoxCol] = useState('')
   const [selectedViolinCol, setSelectedViolinCol] = useState('')
   const [pairPlotCols, setPairPlotCols] = useState([])
+  // User-selectable correlation method — backend now ships pearson/spearman/kendall in one payload
+  const [corrMethod, setCorrMethod] = useState('pearson')
 
   const a = analysis
-  if (!a) return null
 
-  const numericCols = a.column_types?.numeric || []
-  const categoricalCols = a.column_types?.categorical || []
+  // Memoize column-type lookups so the [numericCols] effect doesn't loop —
+  // arrays were re-created every render and triggered the effect, leaking
+  // resets of selectedHistCol etc.
+  const numericCols = useMemo(() => a?.column_types?.numeric || [], [a])
+  const categoricalCols = useMemo(() => a?.column_types?.categorical || [], [a])
 
   useEffect(() => {
     if (numericCols.length > 0) {
@@ -101,7 +105,10 @@ export default function EDADashboard({ analysis, targetColumn, onTargetChange, o
       if (!selectedViolinCol) setSelectedViolinCol(numericCols[0])
       if (pairPlotCols.length === 0) setPairPlotCols(numericCols.slice(0, Math.min(4, numericCols.length)))
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [numericCols])
+
+  if (!a) return null
 
   /* ─── Data Preview Logic ─── */
   let rows = a.preview_data || []
@@ -490,20 +497,55 @@ export default function EDADashboard({ analysis, targetColumn, onTargetChange, o
         </Section>
       )}
 
-      {/* Correlation Heatmap */}
+      {/* Correlation Heatmap — method switcher (Pearson / Spearman / Kendall) */}
       {a.correlation && a.correlation.columns && a.correlation.columns.length >= 2 && (
         <Section title="Correlation Heatmap" icon={TrendingUp} badge={`${a.correlation.columns.length}x${a.correlation.columns.length}`}>
           <div className="glass-panel" style={{ padding: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Method:
+              </span>
+              {[
+                { id: 'pearson',  label: 'Pearson',  hint: 'linear, normality assumed' },
+                { id: 'spearman', label: 'Spearman', hint: 'monotonic non-linear, robust' },
+                { id: 'kendall',  label: 'Kendall',  hint: 'rank-based, small samples' },
+              ].map((m) => {
+                const available = Boolean(a.correlation[`values_${m.id}`])
+                const active = corrMethod === m.id
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => available && setCorrMethod(m.id)}
+                    title={available ? m.hint : 'Backend payload missing — re-upload the dataset'}
+                    disabled={!available}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: 8,
+                      border: '1px solid',
+                      borderColor: active ? 'var(--primary)' : 'rgba(255,255,255,0.1)',
+                      background: active ? 'rgba(99,102,241,0.15)' : 'transparent',
+                      color: active ? '#a5b4fc' : 'var(--text-muted)',
+                      cursor: available ? 'pointer' : 'not-allowed',
+                      opacity: available ? 1 : 0.4,
+                      fontSize: '0.78rem',
+                      fontWeight: 500,
+                    }}
+                  >
+                    {m.label}
+                  </button>
+                )
+              })}
+            </div>
             <Plot
               id="corr-heatmap"
               data={[{
                 type: 'heatmap',
-                z: a.correlation.values,
+                z: a.correlation[`values_${corrMethod}`] || a.correlation.values,
                 x: a.correlation.columns,
                 y: a.correlation.columns,
                 colorscale: [[0, '#312e81'], [0.25, '#4338ca'], [0.5, '#f8fafc'], [0.75, '#be185d'], [1, '#831843']],
                 zmin: -1, zmax: 1,
-                text: a.correlation.values.map(row => row.map(v => v.toFixed(2))),
+                text: (a.correlation[`values_${corrMethod}`] || a.correlation.values).map(row => row.map(v => v.toFixed(2))),
                 texttemplate: '%{text}',
                 textfont: { size: 10 },
                 hoverongaps: false,
@@ -514,6 +556,84 @@ export default function EDADashboard({ analysis, targetColumn, onTargetChange, o
                 margin: { b: 80, l: 80 },
               }}
             />
+          </div>
+        </Section>
+      )}
+
+      {/* Categorical association — Cramér's V (symmetric 0..1) */}
+      {a.categorical_assoc && a.categorical_assoc.columns && a.categorical_assoc.columns.length >= 2 && (
+        <Section
+          title="Categorical Association (Cramér's V)"
+          icon={Grid3x3}
+          badge={`${a.categorical_assoc.columns.length}x${a.categorical_assoc.columns.length}`}
+        >
+          <div className="glass-panel" style={{ padding: '1rem' }}>
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+              0 = independent, 1 = perfectly associated. Derived from chi-square
+              contingency tables; high-cardinality columns ({'>'}50 unique values) are excluded.
+            </p>
+            <Plot
+              id="cramers-heatmap"
+              data={[{
+                type: 'heatmap',
+                z: a.categorical_assoc.values,
+                x: a.categorical_assoc.columns,
+                y: a.categorical_assoc.columns,
+                colorscale: [[0, '#0f172a'], [0.5, '#7c3aed'], [1, '#f472b6']],
+                zmin: 0, zmax: 1,
+                text: a.categorical_assoc.values.map(row => row.map(v => v.toFixed(2))),
+                texttemplate: '%{text}',
+                textfont: { size: 10 },
+                hoverongaps: false,
+              }]}
+              layout={{
+                height: Math.max(300, a.categorical_assoc.columns.length * 35),
+                xaxis: { tickangle: -45 },
+                margin: { b: 80, l: 80 },
+              }}
+            />
+          </div>
+        </Section>
+      )}
+
+      {/* Distribution stats — skewness / kurtosis per numeric column */}
+      {a.distribution_stats && Object.keys(a.distribution_stats).length > 0 && (
+        <Section title="Distribution Stats" icon={BarChart3} badge={`${Object.keys(a.distribution_stats).length} cols`}>
+          <div className="glass-panel" style={{ padding: '1rem' }}>
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+              Skewness near 0 ≈ symmetric. |Skew| {'>'} 1 indicates moderate skew. Kurtosis (Fisher / excess) {'>'} 3 indicates heavy tails.
+            </p>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
+                    <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Column</th>
+                    <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 600 }}>Skewness</th>
+                    <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 600 }}>Kurtosis</th>
+                    <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 600 }}>n</th>
+                    <th style={{ textAlign: 'left',  padding: '8px 12px', fontWeight: 600 }}>Shape</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(a.distribution_stats).map(([col, s]) => {
+                    const skewMag = Math.abs(s.skewness)
+                    let shape = 'Normal-ish'
+                    if (skewMag > 2) shape = 'Highly skewed'
+                    else if (skewMag > 1) shape = 'Moderate skew'
+                    if (Math.abs(s.kurtosis) > 3) shape += ' · heavy tails'
+                    return (
+                      <tr key={col} style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                        <td style={{ padding: '6px 12px' }}>{col}</td>
+                        <td style={{ padding: '6px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{s.skewness.toFixed(3)}</td>
+                        <td style={{ padding: '6px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{s.kurtosis.toFixed(3)}</td>
+                        <td style={{ padding: '6px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--text-muted)' }}>{s.n}</td>
+                        <td style={{ padding: '6px 12px', color: skewMag > 2 ? '#f87171' : skewMag > 1 ? '#fbbf24' : 'var(--text-muted)' }}>{shape}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </Section>
       )}

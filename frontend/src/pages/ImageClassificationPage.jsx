@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { motion } from 'framer-motion'
 import axios from 'axios'
 import { API_BASE } from '../lib/constants'
@@ -7,7 +7,28 @@ import ProblemPicker from '../components/ProblemPicker'
 import ImageUploadZone from '../components/ImageUploadZone'
 import ClassListSearch from '../components/ClassListSearch'
 import MetricHelpTooltip from '../components/MetricHelpTooltip'
-import { ScanEye, Zap, Sparkles, AlertCircle } from 'lucide-react'
+import { ScanEye, Zap, Sparkles, AlertCircle, Download, ChevronDown, AlertTriangle } from 'lucide-react'
+
+/**
+ * Translate axios/fetch errors into a single user-facing message that
+ * distinguishes 4xx (user error / bad input) from 5xx (server crash) from
+ * network failures — instead of the generic "Classification failed" we had.
+ */
+function formatPredictError(err, fallback = 'Classification failed') {
+  if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return null // user cancelled, don't display
+  const status = err?.response?.status
+  const detail = err?.response?.data?.detail
+  if (!err?.response) return 'Network error — backend unreachable.'
+  if (status >= 500) return `Server error (${status}): ${typeof detail === 'string' ? detail : 'unexpected error'}`
+  if (status >= 400) return typeof detail === 'string' ? detail : `Request rejected (${status}).`
+  return fallback
+}
+
+/** Quick FNV-1a hash for client-side dedupe of identical images (filename+size+type). */
+function quickFingerprint(file) {
+  if (!file) return null
+  return `${file.name}|${file.size}|${file.type}|${file.lastModified ?? 0}`
+}
 
 export default function ImageClassificationPage() {
   const [selectedId, setSelectedId] = useState('imagenet-1000')
@@ -16,17 +37,30 @@ export default function ImageClassificationPage() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
+  const [showAllScores, setShowAllScores] = useState(false)
+
+  // In-memory prediction cache for identical images within the same session —
+  // researcher hits "Run Classification" twice on the same image, second call
+  // is instant and skips the network. Keyed by problemId + file fingerprint.
+  const cacheRef = useRef(new Map())
+  // Active in-flight request — used to cancel on unmount / problem switch.
+  const abortRef = useRef(null)
 
   const selected = IMAGE_CLASSIFICATION_PROBLEMS.find(p => p.id === selectedId)
   const isLive = selected?.status === 'live'
 
-  // Reset state on problem switch
+  // Reset state on problem switch (and abort any in-flight request)
   useEffect(() => {
+    abortRef.current?.abort()
     setImage(null)
     setPreview(null)
     setResult(null)
     setError(null)
+    setShowAllScores(false)
   }, [selectedId])
+
+  // Cleanup on unmount — also abort outstanding request
+  useEffect(() => () => abortRef.current?.abort(), [])
 
   // Warm up the model as soon as user picks a problem — fires and forgets
   useEffect(() => {
@@ -39,55 +73,94 @@ export default function ImageClassificationPage() {
     setPreview(URL.createObjectURL(file))
     setResult(null)
     setError(null)
+    setShowAllScores(false)
   }, [])
 
   const clearImage = useCallback(() => {
+    abortRef.current?.abort()
     setPreview(null)
     setImage(null)
     setResult(null)
     setError(null)
+    setShowAllScores(false)
   }, [])
 
-  const runPredict = async () => {
-    if (!image || !selected?.endpoint) return
+  const runPredictForFile = async (file) => {
+    if (!file || !selected?.endpoint) return
+    const cacheKey = `${selected.id}::${quickFingerprint(file)}`
+    const cached = cacheRef.current.get(cacheKey)
+    if (cached) {
+      setResult(cached)
+      return
+    }
+
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     setLoading(true)
     setError(null)
     const formData = new FormData()
-    formData.append('file', image)
+    formData.append('file', file)
     try {
       const resp = await axios.post(`${API_BASE}${selected.endpoint}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': 'multipart/form-data' },
+        signal: controller.signal,
+        timeout: 30000,
       })
+      cacheRef.current.set(cacheKey, resp.data)
       setResult(resp.data)
     } catch (err) {
-      setError(err.response?.data?.detail || 'Classification failed')
+      const msg = formatPredictError(err)
+      if (msg) setError(msg)
     } finally {
+      if (abortRef.current === controller) abortRef.current = null
       setLoading(false)
     }
   }
 
+  const runPredict = () => runPredictForFile(image)
+
   const handleSampleClick = async (sample) => {
     if (!selected?.endpoint) return
-    setLoading(true)
     setError(null)
     setResult(null)
+    setShowAllScores(false)
     try {
       const resp = await fetch(sample.url)
       const blob = await resp.blob()
-      const file = new File([blob], 'sample.jpg', { type: blob.type })
+      // Use sample label as filename so backend logs are readable + cache key
+      // distinguishes between samples (was 'sample.jpg' for every sample).
+      const safeName = `${(sample.label || 'sample').replace(/\s+/g, '-').toLowerCase()}.jpg`
+      const file = new File([blob], safeName, { type: blob.type })
       setImage(file)
       setPreview(sample.url)
-      const formData = new FormData()
-      formData.append('file', file)
-      const prediction = await axios.post(`${API_BASE}${selected.endpoint}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
-      setResult(prediction.data)
+      await runPredictForFile(file)
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to process sample image')
-    } finally {
-      setLoading(false)
+      setError(formatPredictError(err, 'Failed to process sample image'))
     }
+  }
+
+  // Sort prediction scores once — JSON insertion order from backend is not
+  // guaranteed and we want top-5 displayed regardless.
+  const sortedScores = useMemo(() => {
+    if (!result?.all_scores) return []
+    return Object.entries(result.all_scores).sort(([, a], [, b]) => b - a)
+  }, [result])
+
+  // Confidence calibration warning — under 30% top-1 typically means
+  // out-of-distribution input (model has never seen this type of image).
+  const lowConfidence = result && result.confidence < 0.30
+
+  const handleExportJson = () => {
+    if (!result) return
+    const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${selected.id}-prediction-${Date.now()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -150,7 +223,17 @@ export default function ImageClassificationPage() {
           <div className="space-y-8">
             {result ? (
               <div className="glass-card rounded-[2.5rem] p-8 border border-border space-y-6">
-                <h3 className="text-2xl font-black text-text-primary">Prediction Results</h3>
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-2xl font-black text-text-primary">Prediction Results</h3>
+                  <button
+                    onClick={handleExportJson}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-surface/60 text-xs font-bold text-text-secondary hover:border-primary/40 hover:text-primary transition-colors"
+                    aria-label="Export prediction as JSON"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Export JSON
+                  </button>
+                </div>
+
                 <div className="flex items-center justify-between p-6 rounded-3xl bg-primary/5 border border-primary/20">
                   <div>
                     <div className="text-[10px] font-black text-primary uppercase tracking-[0.3em] mb-1">Top Prediction</div>
@@ -161,9 +244,35 @@ export default function ImageClassificationPage() {
                     <div className="text-3xl font-black text-success">{(result.confidence * 100).toFixed(1)}%</div>
                   </div>
                 </div>
+
+                {/* Out-of-distribution warning when top-1 is below the calibration threshold */}
+                {lowConfidence && (
+                  <div className="p-4 rounded-2xl bg-warning/10 border border-warning/30 flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
+                    <div className="text-[11px] leading-relaxed text-text-secondary">
+                      <strong className="text-warning">Low confidence ({(result.confidence * 100).toFixed(1)}%).</strong>{' '}
+                      The model is uncertain — this image may be outside its training distribution.
+                      Consider it suggestive at best.
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-3">
-                  <div className="text-xs font-bold text-text-muted uppercase tracking-widest mb-2">All Scores</div>
-                  {Object.entries(result.all_scores).map(([cls, score]) => (
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs font-bold text-text-muted uppercase tracking-widest">
+                      {showAllScores ? 'All Scores' : 'Top 5 Scores'}
+                    </div>
+                    {sortedScores.length > 5 && (
+                      <button
+                        onClick={() => setShowAllScores((v) => !v)}
+                        className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1"
+                      >
+                        {showAllScores ? 'Show top 5' : `Show all ${sortedScores.length}`}
+                        <ChevronDown className={`w-3 h-3 transition-transform ${showAllScores ? 'rotate-180' : ''}`} />
+                      </button>
+                    )}
+                  </div>
+                  {(showAllScores ? sortedScores : sortedScores.slice(0, 5)).map(([cls, score]) => (
                     <div key={cls} className="space-y-1">
                       <div className="flex justify-between text-[11px] font-bold">
                         <span className="capitalize text-text-secondary">{cls.replace(/_/g, ' ')}</span>
