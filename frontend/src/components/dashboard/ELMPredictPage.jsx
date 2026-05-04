@@ -34,14 +34,32 @@ export default function ELMPredictPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  useEffect(() => {
-    if (!inferenceModel?.features || !analysis?.summary_statistics) return
-    const init = {}
+  // Per-feature stats (mean / min / max) — used as placeholder + range hints
+  // instead of pre-filling the field. We deliberately leave inputs empty so
+  // the user has to enter values intentionally; if they leave a field blank,
+  // we fall back to the mean only at submit time.
+  const featureStats = React.useMemo(() => {
+    const stats = {}
+    if (!inferenceModel?.features || !analysis?.summary_statistics) return stats
     inferenceModel.features.forEach(f => {
-      init[f] = analysis.summary_statistics[f]?.mean ?? 0
+      const s = analysis.summary_statistics[f] ?? {}
+      stats[f] = {
+        mean: typeof s.mean === 'number' ? s.mean : null,
+        min:  typeof s.min  === 'number' ? s.min  : null,
+        max:  typeof s.max  === 'number' ? s.max  : null,
+      }
     })
-    setInputs(init)
+    return stats
   }, [inferenceModel, analysis])
+
+  // Reset inputs to empty whenever the model changes (so old values from a
+  // different feature set don't leak across).
+  useEffect(() => {
+    setInputs({})
+  }, [inferenceModel])
+
+  // Format helper: show placeholder up to ~3 sig-figs (avoid 5.824460431654676)
+  const fmt = (v) => v == null ? '' : (Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(2))
 
   if (!inferenceModel) {
     return (
@@ -90,8 +108,19 @@ export default function ELMPredictPage() {
     setError(null)
     setResult(null)
     try {
+      // For each feature: use the user's entry if present, otherwise fall
+      // back to the column mean (so leaving fields blank still gives a
+      // sensible prediction instead of 0 — which is far out-of-distribution).
       const payload = {}
-      features.forEach(f => { payload[f] = parseFloat(inputs[f]) || 0 })
+      features.forEach(f => {
+        const raw = inputs[f]
+        const parsed = raw === '' || raw == null ? NaN : parseFloat(raw)
+        if (Number.isFinite(parsed)) {
+          payload[f] = parsed
+        } else {
+          payload[f] = featureStats[f]?.mean ?? 0
+        }
+      })
       const resp = await axios.post(`${API}/predict`, { data: payload })
       setResult(resp.data)
     } catch (err) {
@@ -211,21 +240,45 @@ export default function ELMPredictPage() {
           initial="initial"
           animate="animate"
         >
-          {features.map(feature => (
-            <motion.div key={feature} className="input-group" variants={fadeUp} style={{ marginBottom: 0 }}>
-              <label className="input-label" style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 4 }}>
-                {feature}
-              </label>
-              <input
-                type="number"
-                step="any"
-                className="input-field"
-                value={inputs[feature] ?? ''}
-                onChange={e => handleInputChange(feature, e.target.value)}
-                style={{ fontSize: '0.88rem' }}
-              />
-            </motion.div>
-          ))}
+          {features.map(feature => {
+            const s = featureStats[feature] ?? {}
+            const hasRange = s.min != null && s.max != null
+            return (
+              <motion.div key={feature} className="input-group" variants={fadeUp} style={{ marginBottom: 0 }}>
+                <label
+                  className="input-label"
+                  style={{
+                    fontSize: '0.78rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                  }}
+                >
+                  <span>{feature}</span>
+                  {hasRange && (
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 400, fontVariantNumeric: 'tabular-nums' }}>
+                      range: {fmt(s.min)} — {fmt(s.max)}
+                    </span>
+                  )}
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  min={hasRange ? s.min : undefined}
+                  max={hasRange ? s.max : undefined}
+                  className="input-field"
+                  value={inputs[feature] ?? ''}
+                  // Placeholder shows the column mean (faded) so the user has
+                  // a sensible suggested default without it being submitted
+                  // automatically. Empty inputs fall back to mean at submit.
+                  placeholder={s.mean != null ? `e.g. ${fmt(s.mean)}` : 'enter value'}
+                  onChange={e => handleInputChange(feature, e.target.value)}
+                  style={{ fontSize: '0.88rem' }}
+                />
+              </motion.div>
+            )
+          })}
         </motion.div>
 
         {/* Predict Button */}

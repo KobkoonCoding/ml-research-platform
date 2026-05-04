@@ -14,6 +14,7 @@ import {
   Layers, ShieldCheck, Upload, AlertCircle, Zap,
   PersonStanding, Activity
 } from 'lucide-react'
+import SEO from '../components/SEO'
 
 const PROBLEM_FEATURES = {
   'animal-detection': [
@@ -157,6 +158,11 @@ export default function ObjectDetectionPage() {
 
   return (
     <motion.div initial="hidden" animate="visible" variants={stagger} className="space-y-8 pb-12">
+      <SEO
+        path="/deep-learning/object-detection"
+        title="Object Detection — YOLOv8 Animal · Pose · 80-class COCO"
+        description="Bounding-box detection with YOLOv8: 10 animal classes, 17-keypoint human pose estimation, and 80-class general COCO objects. Adjustable confidence threshold. AGPL-3.0 — research showcase only."
+      />
       {/* Header */}
       <motion.div variants={fadeUp} className="glass-panel rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-10 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-80 h-80 bg-success/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2" />

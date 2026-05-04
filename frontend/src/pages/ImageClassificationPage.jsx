@@ -8,6 +8,7 @@ import ImageUploadZone from '../components/ImageUploadZone'
 import ClassListSearch from '../components/ClassListSearch'
 import MetricHelpTooltip from '../components/MetricHelpTooltip'
 import { ScanEye, Zap, Sparkles, AlertCircle, Download, ChevronDown, AlertTriangle } from 'lucide-react'
+import SEO from '../components/SEO'
 
 /**
  * Translate axios/fetch errors into a single user-facing message that
@@ -165,6 +166,11 @@ export default function ImageClassificationPage() {
 
   return (
     <motion.div initial="hidden" animate="visible" variants={stagger} className="space-y-8 pb-12">
+      <SEO
+        path="/deep-learning/image-classification"
+        title="Image Classification — ImageNet · Food-101 · Birds-525"
+        description="Real-time image classification with EfficientNetV2-S (83.9% top-1 ImageNet accuracy), Food-101, and Birds-525 datasets. Upload an image and see top-5 predictions with confidence scores."
+      />
       {/* Header */}
       <motion.div variants={fadeUp} className="glass-panel rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-10 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-80 h-80 bg-primary/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2" />

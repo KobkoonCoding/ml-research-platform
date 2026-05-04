@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { Table2, Sparkles, ShieldCheck } from 'lucide-react'
 import { TABULAR_PROBLEMS, fadeUp, stagger } from '../lib/problemConfigs'
 import ProblemPicker from '../components/ProblemPicker'
+import SEO from '../components/SEO'
 
 export default function TabularClassificationPage() {
   const [selectedId, setSelectedId] = useState('titanic-survival')
@@ -15,6 +16,11 @@ export default function TabularClassificationPage() {
       variants={stagger}
       className="space-y-8 pb-12"
     >
+      <SEO
+        path="/deep-learning/tabular"
+        title="Tabular Classification — Coming Soon"
+        description="Live-debounced tabular classifiers (Titanic survival, heart-disease risk, wine quality) with signed feature contributions — coming soon to the AI Model Hub."
+      />
       {/* Header */}
       <motion.div
         variants={fadeUp}

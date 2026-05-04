@@ -1,0 +1,27 @@
+{
+  "name": "NEXUS — ML Research Platform",
+  "short_name": "NEXUS",
+  "description": "No-code ML research platform fusing mathematical optimization with machine learning. Built by Dr. Kobkoon Janngam, Chiang Mai University.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#6366F1",
+  "background_color": "#050505",
+  "icons": [
+    {
+      "src": "/og-image.png",
+      "sizes": "1200x630",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["education", "productivity", "research"],
+  "lang": "en"
+}

@@ -5,6 +5,7 @@ import {
   BrainCircuit, ScanEye, Stethoscope, Target, Table2,
   ArrowRight, Sparkles, Zap, CheckCircle2, CircleDot
 } from 'lucide-react'
+import SEO from '../components/SEO'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -168,6 +169,23 @@ export default function ModelHubPage() {
       variants={stagger}
       className="space-y-8 pb-12"
     >
+      <SEO
+        path="/deep-learning"
+        title="AI Model Hub — Pretrained Vision & Medical Models"
+        description="Curated pretrained models: ImageNet/Food/Birds classification, chest X-ray + skin lesion + brain MRI medical imaging with Grad-CAM, YOLOv8 animal/pose/object detection."
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'CollectionPage',
+          name: 'AI Model Hub',
+          numberOfItems: 4,
+          hasPart: [
+            { '@type': 'SoftwareApplication', name: 'Image Classification', applicationCategory: 'ResearchApplication' },
+            { '@type': 'SoftwareApplication', name: 'Medical Imaging',      applicationCategory: 'MedicalApplication' },
+            { '@type': 'SoftwareApplication', name: 'Object Detection',     applicationCategory: 'ResearchApplication' },
+            { '@type': 'SoftwareApplication', name: 'Tabular Classification', applicationCategory: 'ResearchApplication' },
+          ],
+        }}
+      />
       {/* Header */}
       <motion.div variants={fadeUp} className="glass-panel rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-10 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-80 h-80 bg-primary/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2" />

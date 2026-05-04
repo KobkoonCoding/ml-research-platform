@@ -5,6 +5,7 @@ import {
   BookOpen, UploadCloud, BarChart2, Settings2, BrainCircuit, ChevronRight,
   Zap, ShieldCheck, FileCode, Download, ArrowRight, Sparkles, Lightbulb
 } from 'lucide-react'
+import SEO from '../components/SEO'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -54,6 +55,19 @@ export default function DocsPage() {
       variants={stagger}
       className="space-y-8"
     >
+      <SEO
+        path="/docs"
+        title="Documentation — Getting Started"
+        description="Step-by-step guide for the NEXUS ML Research Platform: data ingestion, exploratory analysis, leakage-safe preprocessing pipeline, and ELM model training with cross-validation."
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'TechArticle',
+          headline: 'Getting Started with NEXUS',
+          description: 'A step-by-step guide to using the platform for data analysis and machine learning projects.',
+          author: { '@type': 'Person', name: 'Dr. Kobkoon Janngam' },
+          publisher: { '@type': 'EducationalOrganization', name: 'Chiang Mai University' },
+        }}
+      />
       {/* Header */}
       <motion.div variants={fadeUp} className="glass-panel rounded-2xl p-8 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2" />
