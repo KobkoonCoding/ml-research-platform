@@ -105,7 +105,11 @@ export default function ObjectDetectionPage() {
       const resp = await axios.post(
         `${API_BASE}${selected.endpoint}?conf_threshold=${serverConfThreshold}`,
         formData,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
+        {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          // 90s — absorbs HF Space cold-start (~30-40s) + YOLO inference
+          timeout: 90000,
+        }
       )
       setResult(resp.data)
     } catch (err) {
@@ -134,7 +138,11 @@ export default function ObjectDetectionPage() {
       const prediction = await axios.post(
         `${API_BASE}${selected.endpoint}?conf_threshold=${serverConfThreshold}`,
         formData,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
+        {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          // 90s — absorbs HF Space cold-start (~30-40s) + YOLO inference
+          timeout: 90000,
+        }
       )
       setResult(prediction.data)
     } catch (err) {

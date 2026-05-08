@@ -107,7 +107,8 @@ export default function ImageClassificationPage() {
       const resp = await axios.post(`${API_BASE}${selected.endpoint}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         signal: controller.signal,
-        timeout: 30000,
+        // 90s — generous to absorb HF Space cold-start (~30-40s) plus inference
+        timeout: 90000,
       })
       cacheRef.current.set(cacheKey, resp.data)
       setResult(resp.data)

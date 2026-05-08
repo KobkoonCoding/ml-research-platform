@@ -1,6 +1,25 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import { Upload, Trash2, Camera } from 'lucide-react'
 import { resizeImageFile } from '../lib/imageUtils'
+
+// Show a cold-start hint after this many seconds of waiting. The HF Space
+// can sleep when idle; first request takes ~30-40s to wake the container
+// and load model weights. Without this hint, users assume the page is broken.
+const COLD_START_HINT_DELAY_MS = 5000
+
+function ColdStartHint() {
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setShow(true), COLD_START_HINT_DELAY_MS)
+    return () => clearTimeout(t)
+  }, [])
+  if (!show) return null
+  return (
+    <p className="mt-3 text-[11px] text-text-muted text-center leading-relaxed px-2 animate-pulse">
+      First request after a while can take <strong className="text-text-primary">30–40 seconds</strong> while the AI service wakes up. Subsequent requests are fast.
+    </p>
+  )
+}
 
 const ACCENT_BTN = {
   primary: 'bg-primary shadow-primary/30 hover:bg-primary-hover',
@@ -94,17 +113,20 @@ export default function ImageUploadZone({
           </div>
 
           {showPredict && (
-            <button
-              onClick={onPredict}
-              disabled={loading}
-              className={`w-full py-5 rounded-2xl text-white font-black text-lg flex items-center justify-center gap-3 shadow-lg transition-colors ${ACCENT_BTN[accentColor]}`}
-            >
-              {loading ? (
-                <><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Analyzing...</>
-              ) : (
-                <><Camera className="w-5 h-5" /> {predictLabel}</>
-              )}
-            </button>
+            <>
+              <button
+                onClick={onPredict}
+                disabled={loading}
+                className={`w-full py-5 rounded-2xl text-white font-black text-lg flex items-center justify-center gap-3 shadow-lg transition-colors ${ACCENT_BTN[accentColor]}`}
+              >
+                {loading ? (
+                  <><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Analyzing...</>
+                ) : (
+                  <><Camera className="w-5 h-5" /> {predictLabel}</>
+                )}
+              </button>
+              {loading && <ColdStartHint />}
+            </>
           )}
         </div>
       )}
