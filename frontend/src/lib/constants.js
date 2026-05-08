@@ -1,4 +1,18 @@
-export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+/**
+ * Backend base URL.
+ *
+ * Sanitizes the env-var input because Vercel's UI (and shell paste) can
+ * silently include trailing whitespace / newline characters. A trailing
+ * "\n" or "/" mid-URL produces requests like
+ *   "https://example.hf.space\n/predict"
+ * which most browsers send anyway (with the newline preserved!) — the HF
+ * Space accepts the GET but rejects the POST as malformed, surfacing as
+ * the misleading "Network error — backend unreachable" in the UI.
+ *
+ * Defense: trim ALL leading/trailing whitespace and any trailing slash.
+ */
+const _RAW_API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+export const API_BASE = String(_RAW_API_BASE).trim().replace(/\/+$/, '')
 export const SESSION_KEY = 'mlplatform_session'
 export const SESSION_EXPIRY_MS = 60 * 60 * 1000 // 1 hour
 export const THEME_KEY = 'mlplatform_theme_v2'

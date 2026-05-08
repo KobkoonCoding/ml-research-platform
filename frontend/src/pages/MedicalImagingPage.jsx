@@ -197,7 +197,9 @@ export default function MedicalImagingPage() {
       const resp = await axios.post(url, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         signal: controller.signal,
-        timeout: 60000,
+        // HF Space cold-start + Grad-CAM compute can hit 60s on the first call;
+        // 90s gives breathing room without hiding real hangs.
+        timeout: 90000,
       })
       setResult(resp.data)
     } catch (err) {
@@ -233,7 +235,9 @@ export default function MedicalImagingPage() {
       const prediction = await axios.post(url, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         signal: controller.signal,
-        timeout: 60000,
+        // HF Space cold-start + Grad-CAM compute can hit 60s on the first call;
+        // 90s gives breathing room without hiding real hangs.
+        timeout: 90000,
       })
       setResult(prediction.data)
     } catch (err) {
