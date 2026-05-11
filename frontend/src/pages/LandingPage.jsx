@@ -667,10 +667,12 @@ export default function LandingPage() {
           {/* Dark overlay so text is readable over the wave */}
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/20 to-black/80 pointer-events-none z-10" />
 
-          {/* Text — overlays on top, upper-center, with parallax */}
-          <motion.div 
+          {/* Text — overlays on top, upper-center, with parallax.
+              pt-24 reserves space for the fixed navbar (py-6 + line-height ≈ 72px).
+              On taller screens justify-center still keeps content visually centered. */}
+          <motion.div
             style={{ y: heroTextY, opacity: heroOpacity }}
-            className="absolute inset-0 z-20 flex flex-col items-center justify-center px-6 lg:px-12 pb-24"
+            className="absolute inset-0 z-20 flex flex-col items-center justify-center px-6 lg:px-12 pt-24 lg:pt-28 pb-16"
           >
             <div className="text-center max-w-4xl mx-auto">
               <motion.div
