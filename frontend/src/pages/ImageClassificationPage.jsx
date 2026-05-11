@@ -201,7 +201,7 @@ export default function ImageClassificationPage() {
       {isLive ? (
         <motion.div variants={fadeUp} className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Upload Column */}
-          <div className="glass-card rounded-[2.5rem] p-8 border border-border">
+          <div className="glass-card rounded-[1.5rem] md:rounded-[2.5rem] p-5 md:p-8 border border-border">
             <h3 className="text-2xl font-black flex items-center gap-3 text-text-primary mb-8">
               <ScanEye className="w-7 h-7 text-primary" /> Upload Image
             </h3>
@@ -229,7 +229,7 @@ export default function ImageClassificationPage() {
           {/* Results Column */}
           <div className="space-y-8">
             {result ? (
-              <div className="glass-card rounded-[2.5rem] p-8 border border-border space-y-6">
+              <div className="glass-card rounded-[1.5rem] md:rounded-[2.5rem] p-5 md:p-8 border border-border space-y-6">
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="text-2xl font-black text-text-primary">Prediction Results</h3>
                   <button
@@ -281,9 +281,9 @@ export default function ImageClassificationPage() {
                   </div>
                   {(showAllScores ? sortedScores : sortedScores.slice(0, 5)).map(([cls, score]) => (
                     <div key={cls} className="space-y-1">
-                      <div className="flex justify-between text-[11px] font-bold">
-                        <span className="capitalize text-text-secondary">{cls.replace(/_/g, ' ')}</span>
-                        <span className="text-text-muted">{(score * 100).toFixed(1)}%</span>
+                      <div className="flex justify-between gap-2 text-[11px] font-bold">
+                        <span className="capitalize text-text-secondary break-words min-w-0">{cls.replace(/_/g, ' ')}</span>
+                        <span className="text-text-muted shrink-0">{(score * 100).toFixed(1)}%</span>
                       </div>
                       <div className="w-full h-2 bg-border rounded-full overflow-hidden">
                         <motion.div
@@ -304,7 +304,7 @@ export default function ImageClassificationPage() {
                 </button>
               </div>
             ) : (
-              <div className="glass-card rounded-[2.5rem] p-8 border border-border">
+              <div className="glass-card rounded-[1.5rem] md:rounded-[2.5rem] p-5 md:p-8 border border-border">
                 <div className="text-center py-16 space-y-4">
                   <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto">
                     <ScanEye className="w-10 h-10 text-primary/40" />
@@ -344,7 +344,7 @@ export default function ImageClassificationPage() {
         </motion.div>
       ) : (
         /* Coming Soon State */
-        <motion.div variants={fadeUp} className="glass-card rounded-[2.5rem] p-8 border border-border">
+        <motion.div variants={fadeUp} className="glass-card rounded-[1.5rem] md:rounded-[2.5rem] p-5 md:p-8 border border-border">
           <div className="text-center py-16 space-y-4">
             <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto">
               <Sparkles className="w-10 h-10 text-primary/40" />

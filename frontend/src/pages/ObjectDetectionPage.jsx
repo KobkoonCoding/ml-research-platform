@@ -196,7 +196,7 @@ export default function ObjectDetectionPage() {
         <motion.div variants={fadeUp} className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Upload + Slider Column */}
           <div className="space-y-6">
-            <div className="glass-card rounded-[2.5rem] p-8 border border-border">
+            <div className="glass-card rounded-[1.5rem] md:rounded-[2.5rem] p-5 md:p-8 border border-border">
               <h3 className="text-2xl font-black flex items-center gap-3 text-text-primary mb-8">
                 <Target className="w-7 h-7 text-success" /> Upload Image
               </h3>
@@ -251,7 +251,7 @@ export default function ObjectDetectionPage() {
           {/* Results Column */}
           <div className="space-y-8">
             {result ? (
-              <div className="glass-card rounded-[2.5rem] p-8 border border-border space-y-6">
+              <div className="glass-card rounded-[1.5rem] md:rounded-[2.5rem] p-5 md:p-8 border border-border space-y-6">
                 <h3 className="text-2xl font-black text-text-primary">Detection Results</h3>
 
                 {/* Overlay — pose vs bbox */}
@@ -296,9 +296,9 @@ export default function ObjectDetectionPage() {
                     .filter(d => d.confidence >= confThreshold)
                     .sort((a, b) => b.confidence - a.confidence)
                     .map((det, i) => (
-                      <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-border/20">
-                        <span className="text-xs font-bold text-text-primary capitalize">{det.class_name}</span>
-                        <span className="text-xs text-success font-black">{(det.confidence * 100).toFixed(0)}%</span>
+                      <div key={i} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-border/20">
+                        <span className="text-xs font-bold text-text-primary capitalize break-words min-w-0">{det.class_name}</span>
+                        <span className="text-xs text-success font-black shrink-0">{(det.confidence * 100).toFixed(0)}%</span>
                       </div>
                     ))}
                   {result.detections.filter(d => d.confidence >= confThreshold).length === 0 && (
@@ -314,7 +314,7 @@ export default function ObjectDetectionPage() {
                 </button>
               </div>
             ) : (
-              <div className="glass-card rounded-[2.5rem] p-8 border border-border">
+              <div className="glass-card rounded-[1.5rem] md:rounded-[2.5rem] p-5 md:p-8 border border-border">
                 <div className="text-center py-16 space-y-4">
                   <div className="w-20 h-20 rounded-3xl bg-success/10 flex items-center justify-center mx-auto">
                     <Target className="w-10 h-10 text-success/40" />
@@ -368,7 +368,7 @@ export default function ObjectDetectionPage() {
             </div>
           </div>
 
-          <div className="glass-card rounded-[2.5rem] p-8 border border-border relative overflow-hidden">
+          <div className="glass-card rounded-[1.5rem] md:rounded-[2.5rem] p-5 md:p-8 border border-border relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-success/5 to-transparent" />
             <div className="relative z-10">
               <h3 className="text-xl font-black text-text-primary mb-6">Detection Preview</h3>

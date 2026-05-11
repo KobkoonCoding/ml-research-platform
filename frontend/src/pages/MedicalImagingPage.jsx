@@ -303,7 +303,7 @@ export default function MedicalImagingPage() {
       <>
         <motion.div variants={fadeUp} className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Upload Column */}
-          <div className="glass-card rounded-[2.5rem] p-8 border border-border">
+          <div className="glass-card rounded-[1.5rem] md:rounded-[2.5rem] p-5 md:p-8 border border-border">
             <h3 className="text-2xl font-black flex items-center gap-3 text-text-primary mb-8">
               <Stethoscope className="w-7 h-7 text-error" /> {copy.uploadTitle}
             </h3>
@@ -383,7 +383,7 @@ export default function MedicalImagingPage() {
           {/* Results Column */}
           <div className="space-y-8">
             {result ? (
-              <div className="glass-card rounded-[2.5rem] p-8 border border-border space-y-6">
+              <div className="glass-card rounded-[1.5rem] md:rounded-[2.5rem] p-5 md:p-8 border border-border space-y-6">
                 {/* Medical disclaimer — pulled from TASK_DISCLAIMERS so per-task
                     wording is centralized and not duplicated inline. */}
                 <div className="p-4 rounded-2xl bg-warning/10 border border-warning/30 flex items-start gap-3">
@@ -487,8 +487,8 @@ export default function MedicalImagingPage() {
                                     outline: isTop ? `2px solid ${barColor}50` : 'none',
                                   }}
                                 >
-                                  <div className="flex items-center justify-between mb-1.5 gap-3">
-                                    <span className="text-[12px] font-black text-text-primary truncate">
+                                  <div className="flex items-start sm:items-center justify-between mb-1.5 gap-2 sm:gap-3">
+                                    <span className="text-[12px] font-black text-text-primary break-words sm:truncate min-w-0">
                                       {isTop && '★ '}
                                       {info.display}
                                     </span>
@@ -663,7 +663,7 @@ export default function MedicalImagingPage() {
               </div>
 
             ) : (
-              <div className="glass-card rounded-[2.5rem] p-8 border border-border">
+              <div className="glass-card rounded-[1.5rem] md:rounded-[2.5rem] p-5 md:p-8 border border-border">
                 <div className="text-center py-16 space-y-4">
                   <div className="w-20 h-20 rounded-3xl bg-error/10 flex items-center justify-center mx-auto">
                     <Stethoscope className="w-10 h-10 text-error/40" />
@@ -734,7 +734,7 @@ export default function MedicalImagingPage() {
             </div>
           </div>
 
-          <div className="glass-card rounded-[2.5rem] p-8 border border-border relative overflow-hidden">
+          <div className="glass-card rounded-[1.5rem] md:rounded-[2.5rem] p-5 md:p-8 border border-border relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-error/5 to-transparent" />
             <div className="relative z-10">
               <h3 className="text-xl font-black text-text-primary mb-6">{selected?.label} Preview</h3>

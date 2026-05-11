@@ -28,11 +28,13 @@ export default function PathologyBar({ name, score, rank }) {
 
         {/* Name + description */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2 mb-1">
-            <span className="text-[12px] font-bold text-text-primary truncate">
+          {/* Mobile-first: name on its own line, badges below.
+              At sm+ (≥640px), the badge+% slide to the right of the name. */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between sm:gap-2 mb-1">
+            <span className="text-[12px] font-bold text-text-primary break-words sm:truncate">
               {info.display}
             </span>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 mt-0.5 sm:mt-0">
               <span
                 className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md"
                 style={{ color: band.color, background: `${band.color}18` }}
