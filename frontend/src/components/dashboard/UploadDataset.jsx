@@ -3,6 +3,28 @@ import axios from 'axios'
 import { API_BASE } from '../../lib/constants'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Upload, FileSpreadsheet, AlertTriangle, CheckCircle2, Ship, Home, Flower2, Loader2, X, Sparkles } from 'lucide-react'
+import { useApp } from '../../context/AppContext'
+
+/**
+ * Preserve Module 1's backend session before a destructive Module 2 upload.
+ *
+ * Why: the backend uses a single set of globals for the current dataset.
+ * Uploading a new file in Module 2 overwrites whatever Module 1 left behind,
+ * which breaks "Import from Module 1 → train" if the user later returns to
+ * the Module 1 dataset. By saving a named snapshot ("forensic") before each
+ * destructive upload, the import flow can restore it later. Non-blocking:
+ * snapshot failures (e.g. no Module 1 data) must not abort the upload.
+ */
+async function snapshotForensicSafely() {
+  try {
+    await axios.post(`${API_BASE}/dataset/snapshot/save`, null, {
+      params: { name: 'forensic' },
+      timeout: 10000,
+    })
+  } catch (e) {
+    // No dataset yet, or backend doesn't support snapshots — both fine.
+  }
+}
 
 const MAX_SIZE_MB = 100
 
@@ -17,7 +39,8 @@ const DEMO_DATASETS = [
   { id: 'iris', label: 'Iris', type: 'Multiclass', icon: Flower2, color: '#ec4899', rows: '150', cols: 5 },
 ]
 
-export default function UploadDataset({ onUploadSuccess }) {
+export default function UploadDataset({ module = 'forensic', onUploadSuccess }) {
+  const { forensic } = useApp()
   const [file, setFile] = useState(null)
   const [loading, setLoading] = useState(false)
   const [loadingDemo, setLoadingDemo] = useState(null)
@@ -61,6 +84,12 @@ export default function UploadDataset({ onUploadSuccess }) {
     setWarning('')
     setUploadProgress(0)
 
+    // Preserve Module 1's backend session before this upload destroys it.
+    // See note on snapshotForensicSafely() above for the why.
+    if (module === 'neural' && forensic?.analysis) {
+      await snapshotForensicSafely()
+    }
+
     const formData = new FormData()
     formData.append('file', file)
 
@@ -101,6 +130,12 @@ export default function UploadDataset({ onUploadSuccess }) {
     setLoading(true)
     setError('')
     setWarning('')
+
+    // Same snapshot guard as handleUpload — demo load is equally destructive.
+    if (module === 'neural' && forensic?.analysis) {
+      await snapshotForensicSafely()
+    }
+
     try {
       const resp = await axios.get(`${API_BASE}/demo/${datasetName}`)
       onUploadSuccess(resp.data.analysis)

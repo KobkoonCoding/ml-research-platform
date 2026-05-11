@@ -1,11 +1,13 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import axios from 'axios'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   BrainCircuit, ArrowRight, Database, Wand2, Target,
   Upload, Zap, ChevronRight, CheckCircle2, Layers,
   BarChart2, ShieldCheck, Sparkles
 } from 'lucide-react'
+import { API_BASE } from '../../lib/constants'
 import { useApp } from '../../context/AppContext'
 import UploadDataset from './UploadDataset'
 import PageGuide from './elm/PageGuide'
@@ -95,7 +97,7 @@ function ELMIntro() {
 }
 
 /* ── Import from Module 1 card ── */
-function ImportFromModule1({ forensic, onImport }) {
+function ImportFromModule1({ forensic, onImport, importing = false, importError = '' }) {
   const hasData = !!forensic?.analysis
   const hasPipeline = (forensic?.pipeline?.length ?? 0) > 0
   const analysis = forensic?.analysis
@@ -168,19 +170,53 @@ function ImportFromModule1({ forensic, onImport }) {
 
       <button
         onClick={onImport}
+        disabled={importing}
         style={{
           width: '100%', padding: '0.8rem', borderRadius: 12, border: 'none',
-          background: 'linear-gradient(135deg, #10b981, #059669)',
+          background: importing
+            ? 'linear-gradient(135deg, #6b7280, #4b5563)'
+            : 'linear-gradient(135deg, #10b981, #059669)',
           color: 'white', fontWeight: 700, fontSize: '0.9rem',
-          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          cursor: importing ? 'not-allowed' : 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           boxShadow: '0 4px 16px rgba(16,185,129,0.25)',
           transition: 'all 0.2s',
+          opacity: importing ? 0.85 : 1,
         }}
       >
-        <CheckCircle2 size={18} />
-        Use Module 1 Data {hasPipeline ? '& Pipeline' : ''}
-        <ArrowRight size={16} />
+        {importing ? (
+          <>
+            <span
+              style={{
+                width: 16, height: 16, border: '2px solid rgba(255,255,255,0.4)',
+                borderTopColor: 'white', borderRadius: '50%',
+                animation: 'spin 0.8s linear infinite',
+              }}
+            />
+            Restoring Module 1 data…
+          </>
+        ) : (
+          <>
+            <CheckCircle2 size={18} />
+            Use Module 1 Data {hasPipeline ? '& Pipeline' : ''}
+            <ArrowRight size={16} />
+          </>
+        )}
       </button>
+
+      {importError && (
+        <div
+          style={{
+            marginTop: '0.75rem', padding: '0.6rem 0.8rem',
+            borderRadius: 10, fontSize: '0.8rem',
+            background: 'rgba(239,68,68,0.08)',
+            border: '1px solid rgba(239,68,68,0.25)',
+            color: '#fca5a5',
+          }}
+        >
+          {importError}
+        </div>
+      )}
     </motion.div>
   )
 }
@@ -216,17 +252,58 @@ export default function UploadPage({ module = 'forensic' }) {
     }
   }
 
-  const handleImportFromModule1 = () => {
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState('')
+
+  const handleImportFromModule1 = async () => {
     if (!forensic?.analysis) return
+
+    setImporting(true)
+    setImportError('')
+
+    // Before navigating into Module 2, make sure the BACKEND session matches
+    // Module 1's data. If the user has done a fresh upload in Module 2 since
+    // visiting Module 1, the backend currently holds that other dataset —
+    // training against it with Module 1's target column would 400.
+    //
+    // The snapshot was written by UploadDataset before each destructive
+    // Module 2 upload. If no snapshot exists (e.g. the user is coming
+    // straight from Module 1 without ever uploading in Module 2), the
+    // backend already has the right data — a 404 here is fine, just skip.
+    let analysis = forensic.analysis
+    try {
+      const resp = await axios.post(
+        `${API_BASE}/dataset/snapshot/restore`,
+        null,
+        { params: { name: 'forensic' }, timeout: 15000 }
+      )
+      // Use the freshly-restored analysis so we trust the server's view.
+      if (resp.data?.analysis) analysis = resp.data.analysis
+    } catch (err) {
+      const status = err.response?.status
+      if (status && status !== 404) {
+        // Real failure (500, network, etc.) — surface it; the user shouldn't
+        // proceed into a setup that will fail to train.
+        setImporting(false)
+        setImportError(
+          'Could not restore Module 1 data on the server. Re-upload from Module 1 and try again.'
+        )
+        return
+      }
+      // 404 (no snapshot) → backend session is presumably still Module 1's
+      // data, fall through with the frontend's cached analysis.
+    }
+
     setNeuralData({
-      analysis: forensic.analysis,
-      originalAnalysis: forensic.originalAnalysis ?? forensic.analysis,
+      analysis,
+      originalAnalysis: forensic.originalAnalysis ?? analysis,
       targetColumn: forensic.targetColumn ?? '',
       selectedFeatures: [],
       droppedColumns: [],
       trainingResults: null,
       inferenceModel: null,
     })
+    setImporting(false)
     navigate('/elm-studio/setup')
   }
 
@@ -261,7 +338,12 @@ export default function UploadPage({ module = 'forensic' }) {
 
       {/* Import from Module 1 */}
       {hasForensicData && (
-        <ImportFromModule1 forensic={forensic} onImport={handleImportFromModule1} />
+        <ImportFromModule1
+          forensic={forensic}
+          onImport={handleImportFromModule1}
+          importing={importing}
+          importError={importError}
+        />
       )}
 
       {/* Divider */}
