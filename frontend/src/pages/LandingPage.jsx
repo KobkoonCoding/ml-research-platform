@@ -269,6 +269,101 @@ function TickerGroup() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   SHOWCASE INDEX — model list with a cursor-following preview.
+   Isolated component so hover state re-renders only this section.
+   ══════════════════════════════════════════════════════════════ */
+
+function ShowcaseIndex() {
+  const [active, setActive] = useState(-1)
+  const floatRef = useRef(null)
+  const pos = useRef({ x: 0, y: 0, tx: 0, ty: 0, snap: true })
+
+  // Smooth cursor-follow via rAF lerp (no React re-render per mousemove)
+  useEffect(() => {
+    let raf = 0
+    const tick = () => {
+      const p = pos.current
+      p.x += (p.tx - p.x) * 0.16
+      p.y += (p.ty - p.y) * 0.16
+      if (floatRef.current) {
+        floatRef.current.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -112%)`
+      }
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [])
+
+  const onMove = (e) => {
+    const p = pos.current
+    p.tx = e.clientX
+    p.ty = e.clientY
+    if (p.snap) {
+      p.x = p.tx
+      p.y = p.ty
+      p.snap = false
+    }
+  }
+
+  return (
+    <section
+      id="gallery"
+      onMouseMove={onMove}
+      onMouseLeave={() => {
+        setActive(-1)
+        pos.current.snap = true
+      }}
+      style={{ position: 'relative', zIndex: 2, padding: 'clamp(90px,14vh,170px) clamp(20px,7vw,120px)' }}
+    >
+      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+        <div data-reveal>
+          <div className="lv2-label" style={{ marginBottom: 22 }}>07 — Showcase</div>
+          <h2
+            className="lv2-serif"
+            style={{ fontWeight: 200, fontSize: 'clamp(2.2rem,4.6vw,4.2rem)', lineHeight: 1, letterSpacing: '-0.025em' }}
+          >
+            Optimized in the <span style={{ fontStyle: 'italic' }}>wild.</span>
+          </h2>
+          <p style={{ color: '#aab3c5', marginTop: 18, fontSize: 15, lineHeight: 1.6, maxWidth: '52ch' }}>
+            Eight live models across vision, medical imaging, and detection —
+            hover a model to preview it, click to try it yourself.
+          </p>
+        </div>
+        <div data-reveal className="lv2-index" style={{ marginTop: 46 }}>
+          {GALLERY_CARDS.map((card, i) => (
+            <Link
+              key={card.tag}
+              to="/deep-learning"
+              className="lv2-row"
+              onMouseEnter={() => setActive(i)}
+            >
+              <span className="lv2-row-num">{String(i + 1).padStart(2, '0')}</span>
+              <span className="lv2-row-title lv2-serif">{card.title}</span>
+              <span className="lv2-row-meta">{card.desc}</span>
+              <span className="lv2-row-arrow">→</span>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      {/* cursor-following preview (hidden on touch / small screens) */}
+      <div ref={floatRef} className="lv2-float" style={{ opacity: active >= 0 ? 1 : 0 }}>
+        {GALLERY_CARDS.map((card, i) => (
+          <img
+            key={card.tag}
+            src={card.img}
+            alt=""
+            loading="lazy"
+            className={i === active ? 'lv2-float-on' : undefined}
+          />
+        ))}
+        <span className="lv2-float-tag">{active >= 0 ? GALLERY_CARDS[active].tag : ''}</span>
+      </div>
+    </section>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════
    PAGE
    ══════════════════════════════════════════════════════════════ */
 
@@ -897,67 +992,8 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ═══ HORIZONTAL GALLERY ═══ */}
-      <section id="gallery" ref={refs.galleryWrap} style={{ position: 'relative', zIndex: 2, height: '460vh' }}>
-        <div style={{ position: 'sticky', top: 0, height: '100vh', overflow: 'hidden', display: 'flex', alignItems: 'center' }}>
-          <div
-            ref={refs.galleryTrack}
-            style={{ display: 'flex', alignItems: 'center', gap: 'clamp(24px,3vw,52px)', padding: '0 8vw', willChange: 'transform' }}
-          >
-            <div style={{ flex: '0 0 auto', width: '34vw', minWidth: 280 }}>
-              <div className="lv2-label" style={{ marginBottom: 22 }}>07 — Showcase</div>
-              <h2
-                className="lv2-serif"
-                style={{ fontWeight: 200, fontSize: 'clamp(2.2rem,4.6vw,4.2rem)', lineHeight: 1, letterSpacing: '-0.025em' }}
-              >
-                Optimized in
-                <br />
-                the <span style={{ fontStyle: 'italic' }}>wild.</span>
-              </h2>
-              <p style={{ color: '#aab3c5', marginTop: 20, fontSize: 15, lineHeight: 1.6, maxWidth: '32ch' }}>
-                Vision, medical imaging, and detection — one engine. Scroll →
-              </p>
-            </div>
-            {GALLERY_CARDS.map((card) => (
-              <Link key={card.tag} to="/deep-learning" style={{ flex: '0 0 auto', width: 'min(540px,72vw)', display: 'block' }}>
-                <div
-                  data-tilt
-                  style={{
-                    position: 'relative', aspectRatio: '3/4', borderRadius: 18, overflow: 'hidden',
-                    background: 'repeating-linear-gradient(135deg,rgba(255,255,255,0.03) 0 2px,rgba(255,255,255,0.07) 2px 14px)',
-                    border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'flex-end', padding: 26,
-                  }}
-                >
-                  <img
-                    src={card.img}
-                    alt={card.title}
-                    loading="lazy"
-                    onError={(e) => { e.currentTarget.style.display = 'none' }}
-                    style={{
-                      position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
-                      filter: 'saturate(0.78) contrast(1.06) brightness(0.85)',
-                    }}
-                  />
-                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg,rgba(6,7,12,0.14),rgba(6,7,12,0.5) 88%)' }} />
-                  <span
-                    style={{
-                      position: 'relative', zIndex: 1, fontFamily: 'ui-monospace,monospace', fontSize: 11.5,
-                      color: '#b6bdcc', background: 'rgba(6,7,12,0.66)', padding: '5px 9px', borderRadius: 6,
-                    }}
-                  >
-                    {card.tag}
-                  </span>
-                </div>
-                <div style={{ marginTop: 20 }}>
-                  <div className="lv2-serif" style={{ fontWeight: 300, fontSize: '1.7rem', letterSpacing: '-0.01em' }}>{card.title}</div>
-                  <div style={{ color: '#aab3c5', fontSize: 14.5, marginTop: 6 }}>{card.desc}</div>
-                </div>
-              </Link>
-            ))}
-            <div style={{ flex: '0 0 auto', width: '18vw', minWidth: 160 }} />
-          </div>
-        </div>
-      </section>
+      {/* ═══ SHOWCASE — model index with cursor preview ═══ */}
+      <ShowcaseIndex />
 
       {/* ═══ CTA ═══ */}
       <section id="cta" style={{ position: 'relative', zIndex: 2, padding: 'clamp(120px,22vh,260px) clamp(20px,7vw,120px)', textAlign: 'center' }}>

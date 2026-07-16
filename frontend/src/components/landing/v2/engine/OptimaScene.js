@@ -47,12 +47,13 @@ const CAMERA_KEYS = [
   { t: 0.5, p: [0.7, 0.52, 4.65], l: [0.26, 0.1, 0] },
   { t: 0.64, p: [-0.8, 0.2, 4.25], l: [-0.2, 0.02, 0] },
   { t: 0.72, p: [0.7, 0.55, 5.4], l: [0.18, 0.06, 0] },
+  { t: 0.8, p: [-0.5, 0.4, 5.0], l: [-0.12, 0.08, 0] },
   // head-on framing while the particles spell NEXUS at the CTA
-  { t: 0.8, p: [0, 0.35, 5.1], l: [0, 0.1, 0] },
-  // gentle elevated pull-back as the wordmark hands over to the portrait
-  { t: 0.88, p: [0.25, 1.5, 6.6], l: [0, 0.25, 0] },
+  { t: 0.88, p: [0, 0.35, 5.1], l: [0, 0.1, 0] },
+  // gentle lift as the wordmark hands over to the portrait
+  { t: 0.93, p: [0.2, 0.85, 5.7], l: [0, 0.3, 0] },
   // finale frames the developer portrait head-on against the dark sky
-  { t: 0.94, p: [0, 0.5, 4.9], l: [0, 0.52, 0] },
+  { t: 0.97, p: [0, 0.5, 4.9], l: [0, 0.52, 0] },
   { t: 1.0, p: [0.1, 0.46, 4.3], l: [0.03, 0.55, 0] },
 ]
 

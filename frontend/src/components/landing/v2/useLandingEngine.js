@@ -29,14 +29,12 @@ const HERO_SEGMENTS = [
   { range: [0.82, 1.06], side: 1 },
 ]
 
-// Particle morph timing. Stages 1-2 run on hero progress, stages 3-4 on
-// whole-page scroll fraction, stage 5 on the developer section position:
-//   net → sphere (hero 01) → tesseract (hero 02) → AI core (modules)
-//   → NEXUS wordmark (CTA) → developer portrait (final section)
+// Particle morph timing. Stages 1-2 run on hero progress; stages 3-5 are
+// anchored to real section positions so layout changes can't desync them:
+//   net → sphere (hero 01) → tesseract (hero 02) → AI core (#clean)
+//   → NEXUS wordmark (#cta) → developer portrait (#developer)
 const MORPH_1 = [0.3, 0.48]
 const MORPH_2 = [0.55, 0.78]
-const MORPH_CORE = [0.34, 0.44]
-const MORPH_WORD = [0.75, 0.83]
 
 const SCRAMBLE_CHARS = '01<>#/+=*'
 
@@ -209,6 +207,8 @@ export default function useLandingEngine({ sectionIds }) {
     const dotEls = [...root.querySelectorAll('[data-dot]')]
     const secEls = sectionIds.map((id) => root.querySelector('#' + id))
     const devEl = root.querySelector('#developer')
+    const cleanEl = root.querySelector('#clean')
+    const ctaEl = root.querySelector('#cta')
     const plxEls = [...root.querySelectorAll('[data-plx]')]
     const heroSteps = [...root.querySelectorAll('[data-hero-step]')].map((el) => ({ el, kids: [...el.children] }))
 
@@ -358,10 +358,14 @@ export default function useLandingEngine({ sectionIds }) {
         S.shiftX = shiftX
       }
 
-      // mid-page stages ride whole-page scroll: tesseract → AI core around
-      // the module sections, core → NEXUS wordmark arriving at the CTA
-      const mCore = smooth(ramp(S.scrollFrac, MORPH_CORE[0], MORPH_CORE[1]))
-      const mWord = smooth(ramp(S.scrollFrac, MORPH_WORD[0], MORPH_WORD[1]))
+      // mid-page stages anchor to their sections: tesseract → AI core as
+      // the first module scrolls in, core → NEXUS wordmark at the CTA
+      const mCore = cleanEl
+        ? smooth(clamp01((vh * 0.9 - cleanEl.getBoundingClientRect().top) / (vh * 0.8)))
+        : 0
+      const mWord = ctaEl
+        ? smooth(clamp01((vh * 0.95 - ctaEl.getBoundingClientRect().top) / (vh * 0.85)))
+        : 0
 
       // final stage: wordmark → developer portrait as the last section
       // scrolls in. The portrait slides right so the text panel owns the
