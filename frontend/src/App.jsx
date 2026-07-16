@@ -11,6 +11,8 @@ import DashboardLayout from './components/layout/DashboardLayout'
 
 // Pages
 import LandingPage from './pages/LandingPage'
+// Previous landing design, kept reachable at /legacy for comparison
+const LandingPageLegacy = React.lazy(() => import('./pages/LandingPageLegacy'))
 import DocsPage from './pages/DocsPage'
 import AboutPage from './pages/AboutPage'
 import ModelHubPage from './pages/ModelHubPage'
@@ -45,6 +47,14 @@ function App() {
           <AppProvider>
             <Routes>
             <Route path="/" element={<LandingPage />} />
+            <Route
+              path="/legacy"
+              element={
+                <React.Suspense fallback={null}>
+                  <LandingPageLegacy />
+                </React.Suspense>
+              }
+            />
 
             {/* MODULE 1: DATA FORENSIC */}
             <Route path="/forensic" element={<DashboardLayout />}>
