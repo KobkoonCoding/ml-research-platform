@@ -99,11 +99,17 @@ export default class OptimaScene {
     this.spinner = new THREE.Group()
     this.world.add(this.spinner)
 
+    // fewer particles on small screens — mobile GPUs pay dearly for fill
+    if (window.innerWidth < 768) {
+      this.opts.pointDensity = Math.min(this.opts.pointDensity, 4200)
+    }
+
     this.sprite = this._makeSprite()
     this._buildStars()
     this._buildTerrain()
     this._buildPost(w, h)
     this._buildNebula()
+    this._buildSmoke()
     this.rebuildCloud()
     this._loadPortrait()
     // the wordmark uses the display serif — refill once fonts are ready
@@ -221,6 +227,95 @@ export default class OptimaScene {
       })
     )
     this.scene.add(this.stars)
+  }
+
+  /** Soft fbm smoke puff with a radial falloff — tinted per sprite. */
+  _makeSmokeTex() {
+    const S = 256
+    const cv = document.createElement('canvas')
+    cv.width = cv.height = S
+    const ctx2 = cv.getContext('2d')
+    const img = ctx2.createImageData(S, S)
+    const hash = (x, y, o) => {
+      const s = Math.sin(x * 127.1 + y * 311.7 + o * 74.7) * 43758.5453
+      return s - Math.floor(s)
+    }
+    const vn = (px, py, cells, o) => {
+      const x = px * cells
+      const y = py * cells
+      const ix = Math.floor(x)
+      const iy = Math.floor(y)
+      let fx = x - ix
+      let fy = y - iy
+      fx = fx * fx * (3 - 2 * fx)
+      fy = fy * fy * (3 - 2 * fy)
+      const i0 = ix % cells
+      const i1 = (ix + 1) % cells
+      const j0 = iy % cells
+      const j1 = (iy + 1) % cells
+      const a = hash(i0, j0, o)
+      const b = hash(i1, j0, o)
+      const c = hash(i0, j1, o)
+      const d = hash(i1, j1, o)
+      return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy
+    }
+    let k = 0
+    for (let j = 0; j < S; j++)
+      for (let i = 0; i < S; i++) {
+        const px = i / S
+        const py = j / S
+        let v = 0
+        let amp = 0.5
+        let cells = 3
+        for (let o = 0; o < 5; o++) {
+          v += amp * vn(px, py, cells, o * 7)
+          cells *= 2
+          amp *= 0.55
+        }
+        const dx = px - 0.5
+        const dy = py - 0.5
+        const fall = Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) * 2.15)
+        const a = Math.max(0, (v - 0.32) * 1.9) * fall * fall
+        img.data[k++] = 168
+        img.data[k++] = 196
+        img.data[k++] = 255
+        img.data[k++] = Math.min(255, a * 255)
+      }
+    ctx2.putImageData(img, 0, 0)
+    return new THREE.CanvasTexture(cv)
+  }
+
+  /**
+   * Volumetric-feeling mist: large soft smoke sprites drifting slowly
+   * around the scene. Faded out during the neural-net stage (the net wants
+   * clean darkness) and eased back everywhere else.
+   */
+  _buildSmoke() {
+    const tex = this._makeSmokeTex()
+    this.smoke = []
+    for (let i = 0; i < 13; i++) {
+      const mat = new THREE.SpriteMaterial({
+        map: tex,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        rotation: Math.random() * Math.PI * 2,
+      })
+      const s = new THREE.Sprite(mat)
+      const a = (i / 13) * Math.PI * 2 + Math.random() * 0.7
+      const r = 2.0 + Math.random() * 4.6
+      s.position.set(Math.cos(a) * r, -0.8 + Math.random() * 2.6, Math.sin(a) * r - 1.2)
+      s.scale.setScalar(3.6 + Math.random() * 4.8)
+      this.scene.add(s)
+      this.smoke.push({
+        s,
+        baseO: 0.05 + Math.random() * 0.08,
+        rot: (Math.random() - 0.5) * 0.0009,
+        drift: Math.random() * 100,
+        y0: s.position.y,
+      })
+    }
   }
 
   _buildNebula() {
@@ -895,7 +990,7 @@ export default class OptimaScene {
    */
   _buildPortraitExtra() {
     if (this.portExtra || !this.portPts) return
-    const M = PORTRAIT_EXTRA_COUNT
+    const M = window.innerWidth < 768 ? 3500 : PORTRAIT_EXTRA_COUNT
     const src = this.portPts
     const S = src.length / 7
     const tgt = new Float32Array(M * 4)
@@ -1062,6 +1157,18 @@ export default class OptimaScene {
       this.portExtra.visible = portW > 0.01
       this.portExtraMat.uniforms.uTime.value = time
       this.portExtraMat.uniforms.uPortW.value = portW
+    }
+
+    // drifting mist — everywhere except the neural-net stage, slightly
+    // thinned while the portrait owns the frame
+    if (this.smoke) {
+      const smokeO = (1 - netW) * (1 - portW * 0.45) * s.intro
+      for (let i = 0; i < this.smoke.length; i++) {
+        const m = this.smoke[i]
+        m.s.material.opacity = m.baseO * smokeO * (0.75 + 0.25 * Math.sin(time * 0.1 + m.drift))
+        m.s.material.rotation += m.rot
+        m.s.position.y = m.y0 + Math.sin(time * 0.06 + m.drift) * 0.35
+      }
     }
 
     const spd = this.opts.rotationSpeed

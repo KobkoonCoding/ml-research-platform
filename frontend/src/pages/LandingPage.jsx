@@ -383,7 +383,19 @@ export default function LandingPage() {
     scrollToId(id)
   }
 
-  const navLinkStyle = { opacity: 0.55 }
+  // "Skip intro" pill — visible while the pinned hero story is playing
+  const [showSkip, setShowSkip] = useState(false)
+  useEffect(() => {
+    const onScroll = () => {
+      const hero = document.getElementById('hero')
+      if (!hero) return
+      const r = hero.getBoundingClientRect()
+      setShowSkip(window.scrollY > 60 && r.bottom > window.innerHeight * 1.3)
+    }
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   return (
     <div ref={refs.root} className="landing-v2" style={{ position: 'relative', width: '100%', background: '#06070c' }}>
@@ -453,6 +465,13 @@ export default function LandingPage() {
         </div>
       )}
 
+      {/* Skip intro — quick escape from the pinned hero story */}
+      {showSkip && (
+        <button className="lv2-skip" onClick={() => scrollToId('clean')}>
+          Skip intro ↓
+        </button>
+      )}
+
       {/* Scroll progress bar */}
       <div
         ref={refs.progress}
@@ -473,16 +492,21 @@ export default function LandingPage() {
         {DOTS.map((d) => (
           <a
             key={d.target}
-            data-dot
             href={`#${d.target}`}
-            title={d.title}
+            aria-label={d.title}
             onClick={(e) => handleAnchor(e, d.target)}
-            style={{
-              width: 8, height: 8, borderRadius: '50%',
-              border: '1px solid rgba(180,205,255,0.4)', background: 'transparent',
-              display: 'block', transition: 'all .35s', cursor: 'pointer',
-            }}
-          />
+            className="lv2-dot"
+          >
+            <span
+              data-dot
+              style={{
+                width: 8, height: 8, borderRadius: '50%',
+                border: '1px solid rgba(180,205,255,0.4)', background: 'transparent',
+                display: 'block', transition: 'all .35s',
+              }}
+            />
+            <span className="lv2-dot-label">{d.title}</span>
+          </a>
         ))}
       </div>
 
@@ -505,33 +529,37 @@ export default function LandingPage() {
         >
           Nexus<span style={{ color: '#6da8ff' }}>.</span>
         </a>
-        <div
-          style={{
-            display: 'flex', gap: 'clamp(16px,2.4vw,38px)', alignItems: 'center',
-            fontSize: 13, letterSpacing: '0.02em',
-          }}
-        >
-          <a data-nav-desktop href="#clean" onClick={(e) => handleAnchor(e, 'clean')} style={navLinkStyle}>Clean</a>
-          <a data-nav-desktop href="#train" onClick={(e) => handleAnchor(e, 'train')} style={navLinkStyle}>Train</a>
-          <a data-nav-desktop href="#try" onClick={(e) => handleAnchor(e, 'try')} style={navLinkStyle}>Try</a>
-          <a data-nav-desktop href="#gallery" onClick={(e) => handleAnchor(e, 'gallery')} style={navLinkStyle}>Showcase</a>
-          <Link data-nav-desktop to="/docs" style={navLinkStyle}>Docs</Link>
-          <a
-            data-nav-desktop
-            onClick={() => setSoundOn(toggleSound())}
-            style={{ ...navLinkStyle, cursor: 'pointer' }}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter') setSoundOn(toggleSound()) }}
-          >
-            Sound · {soundOn ? 'on' : 'off'}
-          </a>
+        <div style={{ display: 'flex', gap: 'clamp(10px,1.4vw,18px)', alignItems: 'center' }}>
+          <div className="lv2-nav-links" data-nav-desktop>
+            <a className="lv2-nav-link" data-nav-link data-target="clean" href="#clean" onClick={(e) => handleAnchor(e, 'clean')}>Clean</a>
+            <a className="lv2-nav-link" data-nav-link data-target="train" href="#train" onClick={(e) => handleAnchor(e, 'train')}>Train</a>
+            <a className="lv2-nav-link" data-nav-link data-target="try" href="#try" onClick={(e) => handleAnchor(e, 'try')}>Try</a>
+            <a className="lv2-nav-link" data-nav-link data-target="gallery" href="#gallery" onClick={(e) => handleAnchor(e, 'gallery')}>Showcase</a>
+            <Link className="lv2-nav-link" to="/docs">Docs</Link>
+            <span className="lv2-nav-sep" />
+            <button
+              className="lv2-nav-link"
+              onClick={() => setSoundOn(toggleSound())}
+              style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+            >
+              <span
+                style={{
+                  display: 'inline-block', width: 6, height: 6, borderRadius: '50%',
+                  marginRight: 7, verticalAlign: 'middle',
+                  background: soundOn ? '#8fb6ff' : 'rgba(255,255,255,0.25)',
+                  boxShadow: soundOn ? '0 0 8px #6da8ff' : 'none',
+                  transition: 'all .3s',
+                }}
+              />
+              Sound
+            </button>
+          </div>
           <button
             data-magnet
             data-nav-desktop
             onClick={() => setModalOpen(true)}
-            className="lv2-pill"
-            style={{ background: 'none', color: '#eef1f8', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}
+            className="lv2-pill-solid"
+            style={{ padding: '10px 22px', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', border: 'none' }}
           >
             Get Started
           </button>
@@ -585,7 +613,7 @@ export default function LandingPage() {
       )}
 
       {/* ═══ HERO — 520vh pinned scroll story ═══ */}
-      <section id="hero" ref={refs.heroWrap} style={{ position: 'relative', height: '520vh', zIndex: 2 }}>
+      <section id="hero" ref={refs.heroWrap} style={{ position: 'relative', height: '400vh', zIndex: 2 }}>
         <div style={{ position: 'sticky', top: 0, height: '100vh', overflow: 'hidden', perspective: 1200 }}>
           <div style={{ position: 'absolute', inset: '0 auto 0 0', width: '48%', pointerEvents: 'none', background: 'linear-gradient(90deg,rgba(6,7,12,0.76),rgba(6,7,12,0.34) 44%,transparent)' }} />
           <div style={{ position: 'absolute', inset: '0 0 0 auto', width: '48%', pointerEvents: 'none', background: 'linear-gradient(270deg,rgba(6,7,12,0.76),rgba(6,7,12,0.34) 44%,transparent)' }} />
@@ -685,7 +713,7 @@ export default function LandingPage() {
         id="manifesto"
         style={{
           position: 'relative', zIndex: 2,
-          padding: 'clamp(120px,22vh,260px) clamp(20px,7vw,120px)',
+          padding: 'clamp(90px,14vh,170px) clamp(20px,7vw,120px)',
           maxWidth: 1300, margin: '0 auto', textAlign: 'center',
         }}
       >
@@ -960,7 +988,7 @@ export default function LandingPage() {
       <ShowcaseIndex />
 
       {/* ═══ CTA ═══ */}
-      <section id="cta" style={{ position: 'relative', zIndex: 2, padding: 'clamp(120px,22vh,260px) clamp(20px,7vw,120px)', textAlign: 'center' }}>
+      <section id="cta" style={{ position: 'relative', zIndex: 2, padding: 'clamp(100px,16vh,190px) clamp(20px,7vw,120px)', textAlign: 'center' }}>
         <div data-reveal style={{ maxWidth: 1000, margin: '0 auto' }}>
           <div className="lv2-label" style={{ marginBottom: 32 }}>08 — Converge · Research platform</div>
           <h2
@@ -998,7 +1026,7 @@ export default function LandingPage() {
       <section
         id="developer"
         style={{
-          position: 'relative', zIndex: 2, minHeight: '115vh',
+          position: 'relative', zIndex: 2, minHeight: '105vh',
           display: 'flex', flexDirection: 'column', justifyContent: 'center',
           padding: 'clamp(70px,10vh,130px) clamp(20px,7vw,120px) 0',
         }}
@@ -1042,7 +1070,7 @@ export default function LandingPage() {
         </div>
         <footer
           style={{
-            maxWidth: 1300, margin: 'clamp(120px,20vh,220px) auto 0', paddingTop: 36,
+            maxWidth: 1300, margin: 'clamp(80px,12vh,140px) auto 0', paddingTop: 36,
             borderTop: '1px solid rgba(255,255,255,0.1)',
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             flexWrap: 'wrap', gap: 20, color: '#5a6273', fontSize: 13,

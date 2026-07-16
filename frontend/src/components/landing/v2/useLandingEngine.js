@@ -205,6 +205,7 @@ export default function useLandingEngine({ sectionIds }) {
     const magnets = [...root.querySelectorAll('[data-magnet]')].map((el) => ({ el, x: 0, y: 0, on: false }))
     const tilts = [...root.querySelectorAll('[data-tilt]')].map((el) => ({ el, rx: 0, ry: 0, on: false }))
     const dotEls = [...root.querySelectorAll('[data-dot]')]
+    const navLinkEls = [...root.querySelectorAll('[data-nav-link]')]
     const secEls = sectionIds.map((id) => root.querySelector('#' + id))
     const devEl = root.querySelector('#developer')
     const cleanEl = root.querySelector('#clean')
@@ -284,6 +285,9 @@ export default function useLandingEngine({ sectionIds }) {
             d.style.background = on ? '#8fb6ff' : 'transparent'
             d.style.borderColor = on ? '#8fb6ff' : 'rgba(180,205,255,0.4)'
             d.style.transform = on ? 'scale(1.4)' : 'scale(1)'
+          })
+          navLinkEls.forEach((l) => {
+            l.classList.toggle('lv2-on', l.dataset.target === sectionIds[act])
           })
         }
       }
