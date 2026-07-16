@@ -15,7 +15,6 @@
  * data-tilt, data-dot, data-hero-step, data-grain).
  */
 import { useEffect, useRef, useCallback } from 'react'
-import OptimaScene from './engine/OptimaScene'
 import SoundEngine from './engine/soundEngine'
 import LossCurve from './engine/lossCurve'
 
@@ -111,7 +110,13 @@ export default function useLandingEngine({ sectionIds }) {
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const finePtr = window.matchMedia('(pointer:fine)').matches
 
-    const engine = new OptimaScene(canvas)
+    // three.js (and the whole scene) loads lazily so routes other than "/"
+    // never pay for it, and the landing DOM is interactive immediately.
+    let engine = null
+    import('./engine/OptimaScene').then(({ default: OptimaScene }) => {
+      if (S.dead) return
+      engine = new OptimaScene(canvas)
+    }).catch(() => { /* WebGL/network failure: page still works, static bg */ })
     const sound = new SoundEngine()
     soundRef.current = sound
     const loss = refs.lossCanvas.current ? new LossCurve(refs.lossCanvas.current) : null
@@ -228,7 +233,7 @@ export default function useLandingEngine({ sectionIds }) {
     /* ── quality degradation ──────────────────────────────────── */
     const degrade = () => {
       S.qLevel++
-      engine.degrade(S.qLevel)
+      if (engine) engine.degrade(S.qLevel)
       if (S.qLevel === 2) {
         root.querySelectorAll('[data-hero-step]').forEach((el) => {
           el.style.backdropFilter = 'none'
@@ -432,7 +437,7 @@ export default function useLandingEngine({ sectionIds }) {
 
       const skipFrame = S.qLevel >= 2 && S.fCount % 2
       if (!skipFrame) {
-        const res = engine.frame({
+        const res = engine && engine.frame({
           time: now * 0.001,
           targetMorph: S.targetMorph,
           intro: S.intro,
@@ -443,7 +448,7 @@ export default function useLandingEngine({ sectionIds }) {
           shiftX: S.shiftX || 0,
           snap: false,
         })
-        if (res.stageChanged) sound.chime()
+        if (res && res.stageChanged) sound.chime()
       }
       rafId = requestAnimationFrame(animate)
     }
@@ -461,7 +466,7 @@ export default function useLandingEngine({ sectionIds }) {
         S.starve++
         handleScroll()
         if (S.starve % 4 === 0 && S.qLevel < 2) degrade()
-        if (S.starve % 3 === 0)
+        if (S.starve % 3 === 0 && engine)
           engine.frame({
             time: performance.now() * 0.001,
             targetMorph: S.targetMorph,
@@ -479,7 +484,7 @@ export default function useLandingEngine({ sectionIds }) {
     /* ── listeners + kickoff ──────────────────────────────────── */
     const onScroll = () => handleScroll()
     const onResize = () => {
-      engine.setSize(window.innerWidth, window.innerHeight)
+      if (engine) engine.setSize(window.innerWidth, window.innerHeight)
       if (loss) loss.resize()
       handleScroll()
     }
@@ -499,6 +504,7 @@ export default function useLandingEngine({ sectionIds }) {
         S.intro = 1
         S.introStart = performance.now() - 5000
         handleScroll()
+        if (!engine) return null
         engine.frame({
           time: performance.now() * 0.001,
           targetMorph: S.targetMorph,
@@ -528,7 +534,7 @@ export default function useLandingEngine({ sectionIds }) {
       document.removeEventListener('pointerdown', onPointerDown)
       sound.dispose()
       soundRef.current = null
-      engine.dispose()
+      if (engine) engine.dispose()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

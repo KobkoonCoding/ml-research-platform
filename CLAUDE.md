@@ -219,7 +219,8 @@ git push origin main
 
 | Path | Purpose |
 |---|---|
-| `/` | Landing page (Spline 3D + dark theme, force-applied) |
+| `/` | Landing page v2 — three.js scroll-story (particle morph net→cloud→crystal, loss-landscape terrain), dark theme force-applied. Engine lives in `frontend/src/components/landing/v2/`; three.js is lazy-loaded so other routes don't pay for it |
+| `/legacy` | Frozen copy of the previous (Spline-based) landing, noindex. Tag `landing-v1` marks the last commit with it at `/` |
 | `/forensic/*` | Module 1 — data forensic & cleaning lab |
 | `/elm-studio/*` | Module 2 — ELM training studio |
 | `/deep-learning/*` | Module 3 — AI Model Hub (image, medical, detection, tabular) |
@@ -247,7 +248,8 @@ Heatmap strategy:
 1. **Single backend instance**: session state lives in RAM. Scaling to multi-worker requires Redis. Out of scope for the demo.
 2. **Session TTL = 6h**: stale sessions get lazy-evicted; user must re-upload. Acceptable for the demo's working sessions.
 3. **YOLO weights gitignored**: `*.pt` files are downloaded by the Dockerfile at build time. Don't commit them to git — they bloat history.
-4. **Landing page forces dark theme**: it uses Spline 3D + glass cards with hard-coded dark backgrounds. The `useEffect` in `LandingPage.jsx` enforces this and restores the user's chosen theme on unmount.
+4. **Landing page forces dark theme**: the three.js scene has a baked dark palette. The `useEffect` in `LandingPage.jsx` enforces `data-theme="dark"` and restores the user's chosen theme on unmount.
+5. **Landing 3D asset regeneration**: `frontend/public/dev-portrait.png` (particle-portrait mask) is baked by `scripts/gen_dev_portrait.py` from a photo outside the repo. The loader shows once per session (`sessionStorage` key `nexus:intro-seen`).
 
 ---
 
