@@ -29,9 +29,14 @@ const HERO_SEGMENTS = [
   { range: [0.82, 1.06], side: 1 },
 ]
 
-// Particle morph timing over hero progress: net→sphere then sphere→crystal.
+// Particle morph timing. Stages 1-2 run on hero progress, stages 3-4 on
+// whole-page scroll fraction, stage 5 on the developer section position:
+//   net → sphere (hero 01) → tesseract (hero 02) → AI core (modules)
+//   → NEXUS wordmark (CTA) → developer portrait (final section)
 const MORPH_1 = [0.3, 0.48]
-const MORPH_2 = [0.6, 0.86]
+const MORPH_2 = [0.55, 0.78]
+const MORPH_CORE = [0.34, 0.44]
+const MORPH_WORD = [0.75, 0.83]
 
 const SCRAMBLE_CHARS = '01<>#/+=*'
 
@@ -353,18 +358,23 @@ export default function useLandingEngine({ sectionIds }) {
         S.shiftX = shiftX
       }
 
-      // morph stage 3: crystal → developer portrait as the last section
+      // mid-page stages ride whole-page scroll: tesseract → AI core around
+      // the module sections, core → NEXUS wordmark arriving at the CTA
+      const mCore = smooth(ramp(S.scrollFrac, MORPH_CORE[0], MORPH_CORE[1]))
+      const mWord = smooth(ramp(S.scrollFrac, MORPH_WORD[0], MORPH_WORD[1]))
+
+      // final stage: wordmark → developer portrait as the last section
       // scrolls in. The portrait slides right so the text panel owns the
       // left half (scaled down on narrow screens).
-      let m3 = 0
+      let mPort = 0
       if (devEl) {
         const r = devEl.getBoundingClientRect()
-        m3 = smooth(clamp01((vh * 0.92 - r.top) / (vh * 0.8)))
+        mPort = smooth(clamp01((vh * 0.92 - r.top) / (vh * 0.8)))
       }
-      S.targetMorph = (S.baseMorph || 0) + m3
-      if (m3 > 0.01) {
+      S.targetMorph = (S.baseMorph || 0) + mCore + mWord + mPort
+      if (mPort > 0.01) {
         const aspX = Math.min(1, window.innerWidth / Math.max(1, window.innerHeight) / 1.5)
-        S.shiftX = 0.6 * m3 * aspX
+        S.shiftX = 0.6 * mPort * aspX
       }
 
       // loss curve scrub

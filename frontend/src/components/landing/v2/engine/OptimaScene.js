@@ -1,16 +1,22 @@
 /**
  * OptimaScene — the WebGL world behind the landing page.
  *
- * Ported from the Claude Design prototype (three r128, CDN globals) to the
- * project's bundled three (^0.183, ESM addons). The scene renders:
- *   - a particle cloud that morphs: neural net → sphere ("cloud of points")
- *     → crystal (octahedron), driven by `morph` in [0..2]
- *   - a shader terrain shaped like a loss landscape, with particles
- *     descending its gradient into a glowing basin
- *   - starfield + nebula sprites + bloom/grade post-processing
+ * One particle cloud morphs through the page's story (uMorph 0..5):
+ *   0 neural net (signals flowing along bezier edges)
+ *   1 sphere — "every dataset begins as a cloud of points"
+ *   2 tesseract — a 4D hypercube double-rotating ("optimization folds
+ *     it into structure"); particles stream along its edges
+ *   3 AI core — pulsing nucleus + three gyroscopic rings + orbit dust
+ *   4 NEXUS wordmark — particles spell the brand
+ *   5 developer portrait — true photo colors, plus a second particle
+ *     system (PORTRAIT_EXTRA_COUNT) that flies in for double density
  *
- * The class is deliberately framework-free: the React layer owns the rAF
- * loop and scroll math, and calls `frame(state)` once per tick.
+ * Plus: a loss-landscape shader terrain with gradient-descent particles,
+ * starfield, nebula sprites, bloom + film-grade post. Stages 2 and 3 are
+ * fully procedural in the vertex shader; 4 and 5 sample raster targets.
+ *
+ * The React layer owns the rAF loop and scroll math and calls
+ * `frame(state)` once per tick.
  */
 import * as THREE from 'three'
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
@@ -19,15 +25,20 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 
 const DEFAULTS = Object.freeze({
-  pointDensity: 3500,
+  pointDensity: 6000,
   rotationSpeed: 1,
   flowSpeed: 0.3,
 })
 
+// Extra particles that exist only for the developer-portrait finale —
+// they fly in from a far shell as the last morph engages, roughly
+// doubling the portrait's density versus every other formation.
+const PORTRAIT_EXTRA_COUNT = 7000
+
 // Camera keyframes over whole-page scroll fraction (t in [0..1]).
 const CAMERA_KEYS = [
-  // First two keys look slightly downward from higher up, so the net sits
-  // in the lower half of the screen and the intro copy owns the top half.
+  // First two keys look from higher up so the net sits in the lower half
+  // of the screen and the intro copy owns the top half.
   { t: 0.0, p: [0, 0.3, 5.2], l: [0, 0.32, 0] },
   { t: 0.08, p: [0.35, 0.3, 4.75], l: [0.1, 0.24, 0] },
   { t: 0.16, p: [0.95, 0.42, 4.0], l: [0.22, 0.06, 0] },
@@ -35,18 +46,15 @@ const CAMERA_KEYS = [
   { t: 0.36, p: [0, 0.24, 3.95], l: [0, 0, 0] },
   { t: 0.5, p: [0.7, 0.52, 4.65], l: [0.26, 0.1, 0] },
   { t: 0.64, p: [-0.8, 0.2, 4.25], l: [-0.2, 0.02, 0] },
-  { t: 0.76, p: [1.2, 0.9, 5.6], l: [0.25, 0.05, 0] },
-  { t: 0.87, p: [0.2, 2.6, 8.8], l: [0, 0.1, 0] },
-  // final stretch frames the developer portrait (morph stage 3) head-on,
-  // slightly from below so the figure stands against the dark sky
+  { t: 0.72, p: [0.7, 0.55, 5.4], l: [0.18, 0.06, 0] },
+  // head-on framing while the particles spell NEXUS at the CTA
+  { t: 0.8, p: [0, 0.35, 5.1], l: [0, 0.1, 0] },
+  // gentle elevated pull-back as the wordmark hands over to the portrait
+  { t: 0.88, p: [0.25, 1.5, 6.6], l: [0, 0.25, 0] },
+  // finale frames the developer portrait head-on against the dark sky
   { t: 0.94, p: [0, 0.5, 4.9], l: [0, 0.52, 0] },
   { t: 1.0, p: [0.1, 0.46, 4.3], l: [0.03, 0.55, 0] },
 ]
-
-// Crystal scale — the prototype's full-size octahedron overwhelmed the
-// frame (and the DOM text) at close camera keys, so both the mesh and the
-// particle morph target shrink by the same factor.
-const KNOT_SCALE = 0.62
 
 const smooth = (x) => {
   const c = Math.max(0, Math.min(1, x))
@@ -82,8 +90,8 @@ export default class OptimaScene {
     this.scene.fog = new THREE.FogExp2(0x06070c, 0.052)
     this.camera = new THREE.PerspectiveCamera(50, w / h, 0.1, 100)
     this.camera.position.z = 4.5
-    this._camP = [0, 0.12, 4.7]
-    this._camL = [0, 0, 0]
+    this._camP = [0, 0.3, 5.2]
+    this._camL = [0, 0.32, 0]
 
     this.world = new THREE.Group()
     this.scene.add(this.world)
@@ -96,76 +104,13 @@ export default class OptimaScene {
     this._buildPost(w, h)
     this._buildNebula()
     this.rebuildCloud()
-    this._buildKnotMesh()
     this._loadPortrait()
-  }
-
-  /* ── developer portrait (morph stage 3) ───────────────────── */
-
-  /**
-   * Loads the baked portrait mask (RGB = luminance, A = person mask) and
-   * turns it into weighted 3D targets: X/Y from the image plane, Z a small
-   * luminance relief. Until it loads, aPort falls back to crystal targets.
-   */
-  _loadPortrait() {
-    const img = new Image()
-    img.src = '/dev-portrait.png'
-    img.onload = () => {
-      if (!this.renderer) return
-      const iw = img.naturalWidth
-      const ih = img.naturalHeight
-      const cv = document.createElement('canvas')
-      cv.width = iw
-      cv.height = ih
-      const c2 = cv.getContext('2d')
-      c2.drawImage(img, 0, 0)
-      const data = c2.getImageData(0, 0, iw, ih).data
-      const alphaAt = (x, y) => {
-        if (x < 0 || y < 0 || x >= iw || y >= ih) return 0
-        return data[(y * iw + x) * 4 + 3]
-      }
-      const H = 2.35
-      const scale = H / ih
-      const pts = []
-      for (let y = 0; y < ih; y += 2)
-        for (let x = 0; x < iw; x += 2) {
-          const i = (y * iw + x) * 4
-          if (data[i + 3] < 120) continue
-          let lum = Math.pow(data[i] / 255, 0.75)
-          const edge =
-            alphaAt(x - 2, y) < 120 || alphaAt(x + 2, y) < 120 ||
-            alphaAt(x, y - 2) < 120 || alphaAt(x, y + 2) < 120
-          if (edge) lum = Math.max(lum, 0.55)
-          // soften the hard crop line at the bottom of the bust
-          if (y > ih * 0.88) lum *= 0.35 + 0.65 * ((ih - y) / (ih * 0.12))
-          const px = (x - iw / 2) * scale
-          const py = (ih / 2 - y) * scale + 0.55
-          const pz = (lum - 0.45) * 0.32
-          // brighter pixels get extra copies → face stays dense
-          const copies = 1 + Math.round(lum * 2)
-          for (let k = 0; k < copies; k++) pts.push(px, py, pz, lum)
-        }
-      this.portPts = pts
-      this._setPortraitTargets()
+    // the wordmark uses the display serif — refill once fonts are ready
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => {
+        if (this.renderer) this._buildWordTargets()
+      })
     }
-  }
-
-  _setPortraitTargets() {
-    if (!this.portPts || !this.points) return
-    const attr = this.points.geometry.getAttribute('aPort')
-    if (!attr) return
-    const src = this.portPts
-    const M = src.length / 4
-    const a = attr.array
-    for (let i = 0; i < this.N; i++) {
-      const s = ((Math.random() * M) | 0) * 4
-      const j = i * 4
-      a[j] = src[s] + (Math.random() - 0.5) * 0.012
-      a[j + 1] = src[s + 1] + (Math.random() - 0.5) * 0.012
-      a[j + 2] = src[s + 2] + (Math.random() - 0.5) * 0.05
-      a[j + 3] = src[s + 3]
-    }
-    attr.needsUpdate = true
   }
 
   /* ── textures ─────────────────────────────────────────────── */
@@ -286,7 +231,7 @@ export default class OptimaScene {
     this.nebula = defs.map((d) => {
       const s = new THREE.Sprite(
         new THREE.SpriteMaterial({
-          map: this._makeGlow(d[4]), transparent: true, opacity: 0.5,
+          map: this._makeGlow(d[4]), transparent: true, opacity: 0.4,
           blending: THREE.AdditiveBlending, depthWrite: false,
         })
       )
@@ -464,7 +409,7 @@ export default class OptimaScene {
     this.scene.add(this.descPoints)
   }
 
-  /* ── morphing point cloud (net → sphere → crystal) ────────── */
+  /* ── morphing point cloud ─────────────────────────────────── */
 
   _genSphere(N) {
     const a = new Float32Array(N * 3)
@@ -477,31 +422,6 @@ export default class OptimaScene {
       a[i * 3 + 1] = y * 1.4
       a[i * 3 + 2] = Math.sin(t) * r * 1.4
     }
-    return a
-  }
-
-  _genKnot(N) {
-    const g = new THREE.OctahedronGeometry(1.0, 1)
-    g.scale(1, 1.5, 1)
-    const p = g.attributes.position.array
-    const F = p.length / 9
-    const a = new Float32Array(N * 3)
-    for (let i = 0; i < N; i++) {
-      const f = ((Math.random() * F) | 0) * 9
-      let u = Math.random()
-      let v = Math.random()
-      if (u + v > 1) {
-        u = 1 - u
-        v = 1 - v
-      }
-      const w2 = 1 - u - v
-      const j = i * 3
-      const k = 1.03 * KNOT_SCALE
-      a[j] = (p[f] * w2 + p[f + 3] * u + p[f + 6] * v) * k
-      a[j + 1] = (p[f + 1] * w2 + p[f + 4] * u + p[f + 7] * v) * k
-      a[j + 2] = (p[f + 2] * w2 + p[f + 5] * u + p[f + 8] * v) * k
-    }
-    g.dispose()
     return a
   }
 
@@ -568,7 +488,7 @@ export default class OptimaScene {
       ng,
       new THREE.PointsMaterial({
         map: this.sprite, size: 0.055, color: 0xeaf2ff,
-        transparent: true, opacity: 0.95,
+        transparent: true, opacity: 0.75,
         blending: THREE.AdditiveBlending, depthWrite: false,
       })
     )
@@ -627,8 +547,8 @@ export default class OptimaScene {
     this.netCoresA = new THREE.Points(
       ggA,
       new THREE.PointsMaterial({
-        map: this.sprite, size: 0.5, color: 0xfff0dc,
-        transparent: true, opacity: 0.5,
+        map: this.sprite, size: 0.44, color: 0xfff0dc,
+        transparent: true, opacity: 0.38,
         blending: THREE.AdditiveBlending, depthWrite: false,
       })
     )
@@ -638,7 +558,7 @@ export default class OptimaScene {
       ggB,
       new THREE.PointsMaterial({
         map: this.sprite, size: 0.3, color: 0xffe9c9,
-        transparent: true, opacity: 0.32,
+        transparent: true, opacity: 0.24,
         blending: THREE.AdditiveBlending, depthWrite: false,
       })
     )
@@ -662,13 +582,17 @@ export default class OptimaScene {
     const N = (this.N = Math.round(this.opts.pointDensity * this.densScale))
     this._buildNet()
     const sph = this._genSphere(N)
-    const knot = this._genKnot(N)
     const netA = new Float32Array(N * 3)
     const netB = new Float32Array(N * 3)
     const netC = new Float32Array(N * 3)
     const flow = new Float32Array(N * 2)
     const misc = new Float32Array(N * 2)
     const colA = new Float32Array(N * 3)
+    // Raster-based targets (wordmark, portrait) default to the sphere so
+    // an un-loaded asset degrades to a graceful non-event.
+    const word = new Float32Array(N * 3)
+    const port = new Float32Array(N * 4)
+    const portC = new Float32Array(N * 3)
     const cols = [
       [0.49, 0.65, 1], [0.49, 0.65, 1], [0.44, 0.71, 1],
       [0.72, 0.62, 1], [1, 0.85, 0.66],
@@ -687,20 +611,16 @@ export default class OptimaScene {
       misc[i * 2 + 1] = sig ? 0.085 + Math.random() * 0.03 : 0.045 + Math.random() * 0.03
       const c = sig ? [1, 1, 1] : cols[(Math.random() * cols.length) | 0]
       colA[j] = c[0]; colA[j + 1] = c[1]; colA[j + 2] = c[2]
-    }
-    // Portrait targets (morph stage 3): filled from the mask image once it
-    // loads; until then particles would morph onto the crystal shape.
-    const port = new Float32Array(N * 4)
-    for (let i = 0; i < N; i++) {
-      port[i * 4] = knot[i * 3]
-      port[i * 4 + 1] = knot[i * 3 + 1]
-      port[i * 4 + 2] = knot[i * 3 + 2]
+      word[j] = sph[j]; word[j + 1] = sph[j + 1]; word[j + 2] = sph[j + 2]
+      port[i * 4] = sph[j]; port[i * 4 + 1] = sph[j + 1]; port[i * 4 + 2] = sph[j + 2]
       port[i * 4 + 3] = 0.55
+      portC[j] = 0.6; portC[j + 1] = 0.7; portC[j + 2] = 1.0
     }
     const geom = new THREE.BufferGeometry()
     geom.setAttribute('position', new THREE.BufferAttribute(sph, 3))
-    geom.setAttribute('aKnot', new THREE.BufferAttribute(knot, 3))
+    geom.setAttribute('aWord', new THREE.BufferAttribute(word, 3))
     geom.setAttribute('aPort', new THREE.BufferAttribute(port, 4))
+    geom.setAttribute('aPortC', new THREE.BufferAttribute(portC, 3))
     geom.setAttribute('aNetA', new THREE.BufferAttribute(netA, 3))
     geom.setAttribute('aNetB', new THREE.BufferAttribute(netB, 3))
     geom.setAttribute('aNetC', new THREE.BufferAttribute(netC, 3))
@@ -714,39 +634,120 @@ export default class OptimaScene {
       },
       vertexShader: [
         'uniform float uTime; uniform float uMorph; uniform float uFlow; uniform float uIntro; uniform float uPR;',
-        'attribute vec3 aKnot; attribute vec4 aPort; attribute vec3 aNetA; attribute vec3 aNetB; attribute vec3 aNetC; attribute vec3 aCol;',
+        'attribute vec3 aWord; attribute vec4 aPort; attribute vec3 aPortC;',
+        'attribute vec3 aNetA; attribute vec3 aNetB; attribute vec3 aNetC; attribute vec3 aCol;',
         'attribute vec2 aFlowD; attribute vec2 aMisc;',
         'varying vec3 vCol; varying float vA;',
         'float ss(float x){ x = clamp(x, 0.0, 1.0); return x*x*(3.0-2.0*x); }',
         'void main(){',
+        '  float seed = aMisc.x;',
         '  float fr = fract(aFlowD.x + uTime * aFlowD.y * uFlow);',
         '  float u = 1.0 - fr;',
         '  vec3 net = u*u*aNetA + 2.0*u*fr*aNetC + fr*fr*aNetB;',
-        '  vec3 p;',
-        '  if (uMorph <= 1.0) p = mix(net, position, ss(uMorph));',
-        '  else if (uMorph <= 2.0) p = mix(position, aKnot, ss(uMorph - 1.0));',
-        '  else p = mix(aKnot, aPort.xyz, ss(uMorph - 2.0));',
-        '  float sphW = ss(uMorph) * (1.0 - ss(uMorph - 1.0));',
-        '  float portW = ss(uMorph - 2.0);',
-        '  float solidW = ss(uMorph - 1.0) * (1.0 - portW);',
-        '  float seed = aMisc.x;',
+        // ── tesseract: particles stream along 4D hypercube edges while it
+        //    double-rotates in the (x,w) and (y,z) planes ──
+        '  float axSel = floor(fract(seed * 13.73) * 4.0);',
+        '  vec3 oc = step(0.5, fract(seed * vec3(3.17, 5.31, 7.97))) * 2.0 - 1.0;',
+        '  float et = fract(aFlowD.x + uTime * (0.05 + aFlowD.y * 0.12));',
+        '  float ec = et * 2.0 - 1.0;',
+        '  vec4 v4;',
+        '  if (axSel < 0.5) v4 = vec4(ec, oc.x, oc.y, oc.z);',
+        '  else if (axSel < 1.5) v4 = vec4(oc.x, ec, oc.y, oc.z);',
+        '  else if (axSel < 2.5) v4 = vec4(oc.x, oc.y, ec, oc.z);',
+        '  else v4 = vec4(oc.x, oc.y, oc.z, ec);',
+        '  float ra = uTime * 0.4; float c1 = cos(ra); float s1 = sin(ra);',
+        '  v4 = vec4(v4.x * c1 - v4.w * s1, v4.y, v4.z, v4.x * s1 + v4.w * c1);',
+        '  float rb = uTime * 0.29; float c2 = cos(rb); float s2 = sin(rb);',
+        '  v4 = vec4(v4.x, v4.y * c2 - v4.z * s2, v4.y * s2 + v4.z * c2, v4.w);',
+        '  float persp = 2.6 / (2.6 - clamp(v4.w, -1.15, 1.15));',
+        '  vec3 tess = v4.xyz * persp * 0.36 + vec3(0.0, 0.18, 0.0);',
+        '  float tessGlow = clamp((persp - 0.65) * 1.3, 0.25, 1.5);',
+        // ── AI core: pulsing nucleus + three gyroscopic rings + dust ──
+        '  float kind = fract(seed * 9.13);',
+        '  vec3 core; float coreGlow; vec3 coreCol;',
+        '  if (kind < 0.2) {',
+        '    vec3 dirN = normalize(vec3(sin(seed*231.0), sin(seed*57.0), cos(seed*113.0)) + 1e-3);',
+        '    float rr = 0.26 * pow(fract(seed * 17.3), 0.34) * (1.0 + 0.06 * sin(uTime * 2.6));',
+        '    core = dirN * rr + vec3(0.0, 0.12, 0.0);',
+        '    coreGlow = 1.15;',
+        '    coreCol = vec3(1.02, 0.99, 0.9);',
+        '  } else if (kind < 0.82) {',
+        '    float ri = floor((kind - 0.2) * 4.83);',
+        // decorrelated angle so each ring fills evenly instead of clumping
+        '    float ang = fract(seed * 37.719) * 6.2831 + uTime * (0.55 - ri * 0.34);',
+        '    float rad = 0.82 + ri * 0.3 + (fract(seed * 53.71) - 0.5) * 0.05;',
+        '    vec3 ring = vec3(cos(ang) * rad, (fract(seed * 71.13) - 0.5) * 0.06, sin(ang) * rad);',
+        '    float tl = ri * 1.05 + uTime * 0.08;',
+        '    float ct = cos(tl); float st = sin(tl);',
+        '    ring = vec3(ring.x, ring.y * ct - ring.z * st, ring.y * st + ring.z * ct);',
+        '    float ry = ri * 2.1;',
+        '    float cy = cos(ry); float sy = sin(ry);',
+        '    ring = vec3(ring.x * cy + ring.z * sy, ring.y, -ring.x * sy + ring.z * cy);',
+        '    core = ring + vec3(0.0, 0.12, 0.0);',
+        '    coreGlow = 0.95;',
+        '    coreCol = mix(vec3(0.42, 0.72, 1.05), vec3(0.65, 0.6, 1.05), ri * 0.5);',
+        '  } else {',
+        '    vec3 dirD = normalize(vec3(sin(seed*77.0), 0.35 * sin(seed*141.0), cos(seed*99.0)) + 1e-3);',
+        '    float raD = 1.7 + fract(seed * 31.7) * 0.7;',
+        '    float ao = uTime * (0.05 + fract(seed*5.9) * 0.06) + seed * 6.2831;',
+        '    core = vec3(cos(ao) * dirD.x - sin(ao) * dirD.z, dirD.y, sin(ao) * dirD.x + cos(ao) * dirD.z) * raD + vec3(0.0, 0.12, 0.0);',
+        '    coreGlow = 0.45;',
+        '    coreCol = vec3(0.55, 0.52, 0.95);',
+        '  }',
+        // ── morph chain ──
+        '  float w1 = ss(uMorph);',
+        '  float w2 = ss(uMorph - 1.0);',
+        '  float w3 = ss(uMorph - 2.0);',
+        '  float w4 = ss(uMorph - 3.0);',
+        '  float w5 = ss(uMorph - 4.0);',
+        '  float sphW = w1 * (1.0 - w2);',
+        '  float tessW = w2 * (1.0 - w3);',
+        '  float coreW = w3 * (1.0 - w4);',
+        '  float wordW = w4 * (1.0 - w5);',
+        '  float portW = w5;',
+        '  vec3 p = mix(net, position, w1);',
+        '  p = mix(p, tess, w2);',
+        '  p = mix(p, core, w3);',
+        '  p = mix(p, aWord, w4);',
+        '  p = mix(p, aPort.xyz, w5);',
         '  float sw = sphW * 0.16 * sin(uTime*0.28 + p.y*2.2 + seed*0.9);',
         '  float cs = cos(sw); float sn = sin(sw);',
         '  p.xz = mat2(cs, -sn, sn, cs) * p.xz;',
         '  p += normalize(p + vec3(1e-4)) * (0.05 * sphW * sin(uTime*0.6 + seed*38.0));',
-        // portrait must stay crisp — only a faint breathing remains
-        '  p += 0.025 * (1.0 - portW * 0.85) * vec3(sin(uTime*0.7+seed*40.0), cos(uTime*0.55+seed*70.0), sin(uTime*0.85+seed*55.0));',
+        // formed shapes stay crisp — only a faint breathing remains
+        '  float crisp = 1.0 - 0.85 * max(max(tessW, coreW), max(wordW, portW));',
+        '  p += 0.025 * crisp * vec3(sin(uTime*0.7+seed*40.0), cos(uTime*0.55+seed*70.0), sin(uTime*0.85+seed*55.0));',
         '  float ig = ss(uIntro);',
         '  p *= mix(1.7 + seed * 0.6, 1.0, ig);',
         '  vec4 mv = modelViewMatrix * vec4(p, 1.0);',
         '  gl_Position = projectionMatrix * mv;',
         '  float tw = 0.72 + 0.28 * sin(uTime * (1.2 + seed*2.8) + seed*80.0);',
         '  float twP = mix(tw, 0.88 + 0.12 * sin(uTime * (1.2 + seed*2.8) + seed*80.0), portW);',
-        '  float solidFade = mix(1.0, step(0.08, aMisc.y) * 0.35, solidW);',
-        '  vA = twP * ig * mix(solidFade, 0.13 + aPort.w * 0.5, portW);',
-        '  vec3 pcol = mix(vec3(0.3, 0.42, 0.74), vec3(0.95, 0.97, 1.05), aPort.w);',
-        '  vCol = mix(aCol, pcol, portW);',
-        '  gl_PointSize = aMisc.y * uPR * twP * (1.0 + 0.35 * sphW) * mix(1.0, 0.5 + aPort.w * 0.85, portW) * (260.0 / -mv.z);',
+        // the oversized "signal" particles look great flowing along the
+        // net, but read as fat blobs inside the structured formations —
+        // clamp them down while any formed shape is active
+        '  float formedW = max(max(tessW, coreW), max(wordW, portW));',
+        '  float sizeBase = mix(aMisc.y, min(aMisc.y, 0.062), formedW);',
+        // ── per-stage color ──
+        '  vec3 tessCol = mix(vec3(0.4, 0.48, 0.95), vec3(0.85, 0.95, 1.1), clamp((persp - 0.72) * 1.5, 0.0, 1.0));',
+        '  float wnx = clamp(aWord.x / 3.6 + 0.5, 0.0, 1.0);',
+        '  float sweep = 0.7 + 0.5 * sin(uTime * 1.2 - wnx * 5.2);',
+        '  vec3 wordCol = mix(vec3(0.87, 0.92, 1.05), vec3(0.49, 0.65, 1.0), wnx) * sweep;',
+        '  vec3 portCol = aPortC * (0.5 + aPort.w * 0.65);',
+        '  vec3 c = mix(aCol, tessCol, w2);',
+        '  c = mix(c, coreCol, w3);',
+        '  c = mix(c, wordCol, w4);',
+        '  c = mix(c, portCol, w5);',
+        '  vCol = c;',
+        // ── per-stage alpha & size ──
+        '  float aStage = 1.0;',
+        '  aStage = mix(aStage, 0.8 * tessGlow, tessW);',
+        '  aStage = mix(aStage, 0.7 * coreGlow, coreW);',
+        '  aStage = mix(aStage, 0.55 + 0.35 * sweep, wordW);',
+        '  float portA = 0.13 + aPort.w * 0.5;',
+        '  vA = twP * ig * mix(aStage, portA, portW);',
+        '  float sizeStage = 1.0 + 0.35 * sphW + (0.25 * tessGlow) * tessW + (0.2 * coreGlow) * coreW + 0.1 * wordW;',
+        '  gl_PointSize = sizeBase * uPR * twP * sizeStage * mix(1.0, 0.5 + aPort.w * 0.85, portW) * (260.0 / -mv.z);',
         '}',
       ].join('\n'),
       fragmentShader: [
@@ -766,69 +767,209 @@ export default class OptimaScene {
     this.points = new THREE.Points(geom, this.pMat)
     this.points.frustumCulled = false
     this.spinner.add(this.points)
-    // degrade() rebuilds the cloud after the mask may already be loaded
+    // degrade() rebuilds after the raster assets may already be available
+    this._buildWordTargets()
     this._setPortraitTargets()
   }
 
-  _buildKnotMesh() {
-    const g = new THREE.OctahedronGeometry(1.0, 1)
-    g.scale(1, 1.5, 1)
-    this.knotMat = new THREE.ShaderMaterial({
-      uniforms: { uTime: { value: 0 }, uOp: { value: 0 } },
+  /* ── NEXUS wordmark (morph stage 4) ───────────────────────── */
+
+  _buildWordTargets() {
+    if (!this.points) return
+    const attr = this.points.geometry.getAttribute('aWord')
+    if (!attr) return
+    const cw = 1024
+    const ch = 300
+    const cv = document.createElement('canvas')
+    cv.width = cw
+    cv.height = ch
+    const c2 = cv.getContext('2d')
+    c2.fillStyle = '#fff'
+    c2.textAlign = 'center'
+    c2.textBaseline = 'middle'
+    c2.font = '400 210px Fraunces, Georgia, serif'
+    c2.fillText('NEXUS', cw / 2, ch / 2 + 8)
+    const data = c2.getImageData(0, 0, cw, ch).data
+    const cands = []
+    for (let y = 0; y < ch; y += 2)
+      for (let x = 0; x < cw; x += 2) {
+        if (data[(y * cw + x) * 4 + 3] < 128) continue
+        cands.push(x, y)
+      }
+    if (!cands.length) return
+    const M = cands.length / 2
+    const scale = 3.7 / cw
+    const a = attr.array
+    for (let i = 0; i < this.N; i++) {
+      const s = ((Math.random() * M) | 0) * 2
+      a[i * 3] = (cands[s] - cw / 2) * scale + (Math.random() - 0.5) * 0.01
+      a[i * 3 + 1] = (ch / 2 - cands[s + 1]) * scale + 0.35 + (Math.random() - 0.5) * 0.01
+      a[i * 3 + 2] = (Math.random() - 0.5) * 0.14
+    }
+    attr.needsUpdate = true
+  }
+
+  /* ── developer portrait (morph stage 5) ───────────────────── */
+
+  /**
+   * Loads the baked portrait asset (RGB = photo color, A = person mask)
+   * and turns it into weighted 3D targets: X/Y from the image plane, Z a
+   * small luminance relief, plus the true photo color per point.
+   */
+  _loadPortrait() {
+    const img = new Image()
+    img.src = '/dev-portrait.png'
+    img.onload = () => {
+      if (!this.renderer) return
+      const iw = img.naturalWidth
+      const ih = img.naturalHeight
+      const cv = document.createElement('canvas')
+      cv.width = iw
+      cv.height = ih
+      const c2 = cv.getContext('2d')
+      c2.drawImage(img, 0, 0)
+      const data = c2.getImageData(0, 0, iw, ih).data
+      const alphaAt = (x, y) => {
+        if (x < 0 || y < 0 || x >= iw || y >= ih) return 0
+        return data[(y * iw + x) * 4 + 3]
+      }
+      const H = 2.35
+      const scale = H / ih
+      const pts = []
+      for (let y = 0; y < ih; y += 2)
+        for (let x = 0; x < iw; x += 2) {
+          const i = (y * iw + x) * 4
+          if (data[i + 3] < 120) continue
+          const r = data[i] / 255
+          const g = data[i + 1] / 255
+          const b = data[i + 2] / 255
+          let lum = Math.pow(0.299 * r + 0.587 * g + 0.114 * b, 0.75)
+          const edge =
+            alphaAt(x - 2, y) < 120 || alphaAt(x + 2, y) < 120 ||
+            alphaAt(x, y - 2) < 120 || alphaAt(x, y + 2) < 120
+          if (edge) lum = Math.max(lum, 0.55)
+          // soften the hard crop line at the bottom of the bust
+          if (y > ih * 0.88) lum *= 0.35 + 0.65 * ((ih - y) / (ih * 0.12))
+          const px = (x - iw / 2) * scale
+          const py = (ih / 2 - y) * scale + 0.55
+          const pz = (lum - 0.45) * 0.32
+          // brighter pixels get extra copies → face stays dense
+          const copies = 1 + Math.round(lum * 2)
+          for (let k = 0; k < copies; k++) pts.push(px, py, pz, lum, r, g, b)
+        }
+      this.portPts = pts
+      this._setPortraitTargets()
+      this._buildPortraitExtra()
+    }
+  }
+
+  /** Fill aPort/aPortC on the main cloud from the sampled portrait points. */
+  _setPortraitTargets() {
+    if (!this.portPts || !this.points) return
+    const attr = this.points.geometry.getAttribute('aPort')
+    const cAttr = this.points.geometry.getAttribute('aPortC')
+    if (!attr || !cAttr) return
+    const src = this.portPts
+    const M = src.length / 7
+    const a = attr.array
+    const c = cAttr.array
+    for (let i = 0; i < this.N; i++) {
+      const s = ((Math.random() * M) | 0) * 7
+      const j = i * 4
+      a[j] = src[s] + (Math.random() - 0.5) * 0.012
+      a[j + 1] = src[s + 1] + (Math.random() - 0.5) * 0.012
+      a[j + 2] = src[s + 2] + (Math.random() - 0.5) * 0.05
+      a[j + 3] = src[s + 3]
+      c[i * 3] = src[s + 4]
+      c[i * 3 + 1] = src[s + 5]
+      c[i * 3 + 2] = src[s + 6]
+    }
+    attr.needsUpdate = true
+    cAttr.needsUpdate = true
+  }
+
+  /**
+   * Second particle system for the finale only: extra points fly in from
+   * a far shell as the portrait forms, carrying true photo colors.
+   */
+  _buildPortraitExtra() {
+    if (this.portExtra || !this.portPts) return
+    const M = PORTRAIT_EXTRA_COUNT
+    const src = this.portPts
+    const S = src.length / 7
+    const tgt = new Float32Array(M * 4)
+    const col = new Float32Array(M * 3)
+    const scat = new Float32Array(M * 3)
+    const seed = new Float32Array(M * 2)
+    for (let i = 0; i < M; i++) {
+      const s = ((Math.random() * S) | 0) * 7
+      tgt[i * 4] = src[s] + (Math.random() - 0.5) * 0.01
+      tgt[i * 4 + 1] = src[s + 1] + (Math.random() - 0.5) * 0.01
+      tgt[i * 4 + 2] = src[s + 2] + (Math.random() - 0.5) * 0.04
+      tgt[i * 4 + 3] = src[s + 3]
+      col[i * 3] = src[s + 4]
+      col[i * 3 + 1] = src[s + 5]
+      col[i * 3 + 2] = src[s + 6]
+      const th = Math.random() * Math.PI * 2
+      const ph = Math.acos(Math.random() * 2 - 1)
+      const rr = 3.2 + Math.random() * 3.5
+      scat[i * 3] = rr * Math.sin(ph) * Math.cos(th)
+      scat[i * 3 + 1] = rr * Math.sin(ph) * Math.sin(th) * 0.6 + 0.5
+      scat[i * 3 + 2] = rr * Math.cos(ph)
+      seed[i * 2] = Math.random()
+      seed[i * 2 + 1] = Math.random()
+    }
+    const geom = new THREE.BufferGeometry()
+    // three requires a position attribute even though the shader ignores it
+    geom.setAttribute('position', new THREE.BufferAttribute(scat.slice(), 3))
+    geom.setAttribute('aTgt', new THREE.BufferAttribute(tgt, 4))
+    geom.setAttribute('aColor', new THREE.BufferAttribute(col, 3))
+    geom.setAttribute('aScat', new THREE.BufferAttribute(scat, 3))
+    geom.setAttribute('aSeed', new THREE.BufferAttribute(seed, 2))
+    this.portExtraMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uPortW: { value: 0 },
+        uPR: { value: Math.min(devicePixelRatio, 1.25) },
+      },
       vertexShader: [
-        'varying vec3 vW; varying vec3 vP;',
+        'uniform float uTime; uniform float uPortW; uniform float uPR;',
+        'attribute vec4 aTgt; attribute vec3 aColor; attribute vec3 aScat; attribute vec2 aSeed;',
+        'varying vec3 vCol; varying float vA;',
+        'float ss(float x){ x = clamp(x, 0.0, 1.0); return x*x*(3.0-2.0*x); }',
         'void main(){',
-        '  vec4 wp = modelMatrix * vec4(position, 1.0);',
-        '  vW = wp.xyz; vP = position;',
-        '  gl_Position = projectionMatrix * viewMatrix * wp;',
+        // staggered fly-in: each particle starts once uPortW passes its slot
+        '  float e = ss((uPortW - aSeed.y * 0.45) / 0.55);',
+        '  float dr = uTime * 0.05 + aSeed.x * 6.2831;',
+        '  vec3 sc = aScat + vec3(sin(dr), cos(dr * 0.7), sin(dr * 1.3)) * 0.35;',
+        '  vec3 p = mix(sc, aTgt.xyz, e);',
+        '  p += 0.006 * vec3(sin(uTime*1.1+aSeed.x*50.0), cos(uTime*0.9+aSeed.y*60.0), sin(uTime*1.3+aSeed.x*70.0));',
+        '  vec4 mv = modelViewMatrix * vec4(p, 1.0);',
+        '  gl_Position = projectionMatrix * mv;',
+        '  float tw = 0.85 + 0.15 * sin(uTime * (1.0 + aSeed.x * 2.0) + aSeed.y * 80.0);',
+        '  vA = e * uPortW * tw * (0.08 + aTgt.w * 0.38);',
+        '  vCol = aColor * (0.5 + aTgt.w * 0.65);',
+        '  gl_PointSize = (0.03 + aTgt.w * 0.05) * uPR * tw * (260.0 / -mv.z);',
         '}',
       ].join('\n'),
       fragmentShader: [
-        'uniform float uTime; uniform float uOp;',
-        'varying vec3 vW; varying vec3 vP;',
-        'float hash3(vec3 p){ return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453123); }',
+        'varying vec3 vCol; varying float vA;',
         'void main(){',
-        '  vec3 N = normalize(cross(dFdx(vW), dFdy(vW)));',
-        '  vec3 V = normalize(cameraPosition - vW);',
-        '  if (dot(N, V) < 0.0) N = -N;',
-        '  float nd = clamp(dot(N, V), 0.0, 1.0);',
-        '  vec3 fr = vec3(pow(1.0 - nd, 1.9), pow(1.0 - nd, 2.15), pow(1.0 - nd, 2.4));',
-        '  vec3 deep = vec3(0.012, 0.07, 0.17);',
-        '  vec3 R = reflect(-V, N);',
-        '  vec3 env = mix(vec3(0.01, 0.03, 0.07), vec3(0.45, 0.75, 0.95), smoothstep(-0.4, 0.7, R.y));',
-        '  env += vec3(0.28, 0.9, 1.0) * smoothstep(0.2, -0.5, R.y) * 0.35;',
-        '  vec3 col = deep + env * fr * 1.05;',
-        '  float streak = hash3(floor(vP * 5.0));',
-        '  col += vec3(0.5, 0.8, 1.0) * streak * 0.10 * (1.0 - nd);',
-        '  vec3 L = normalize(vec3(0.4, 0.9, 0.3));',
-        '  float spec = pow(clamp(dot(R, L), 0.0, 1.0), 60.0);',
-        '  float fid = hash3(floor(N * 7.0) + 2.0);',
-        '  col += vec3(0.95, 1.0, 1.0) * spec * (0.3 + 0.9 * step(0.6, fid));',
-        '  col += vec3(0.2, 0.75, 1.0) * pow(1.0 - nd, 5.0) * (0.3 + 0.15 * sin(uTime * 1.4));',
-        '  gl_FragColor = vec4(col, uOp * (0.92 + 0.08 * fr.g));',
+        '  vec2 q = gl_PointCoord - 0.5;',
+        '  float d = length(q);',
+        '  float a = smoothstep(0.5, 0.06, d);',
+        '  float core = 1.0 + 1.4 * smoothstep(0.22, 0.0, d);',
+        '  gl_FragColor = vec4(vCol * core, a * vA);',
         '}',
       ].join('\n'),
       transparent: true,
-      depthWrite: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
     })
-    this.knotMesh = new THREE.Mesh(g, this.knotMat)
-    this.knotMesh.visible = false
-    this.knotWire = new THREE.LineSegments(
-      new THREE.EdgesGeometry(g, 12),
-      new THREE.LineBasicMaterial({
-        color: 0x9ff2ff, transparent: true, opacity: 0,
-        blending: THREE.AdditiveBlending, depthWrite: false,
-      })
-    )
-    this.knotMesh.add(this.knotWire)
-    this.crystalGlow = new THREE.Sprite(
-      new THREE.SpriteMaterial({
-        map: this._makeGlow('rgba(70,190,255,0.6)'), transparent: true, opacity: 0,
-        blending: THREE.AdditiveBlending, depthWrite: false,
-      })
-    )
-    this.crystalGlow.scale.setScalar(3.4)
-    this.spinner.add(this.crystalGlow, this.knotMesh)
+    this.portExtra = new THREE.Points(geom, this.portExtraMat)
+    this.portExtra.frustumCulled = false
+    this.portExtra.visible = false
+    this.spinner.add(this.portExtra)
   }
 
   /* ── runtime ──────────────────────────────────────────────── */
@@ -850,6 +991,7 @@ export default class OptimaScene {
       this.renderer.setPixelRatio(1)
       this.usePost = false
       if (this.pMat) this.pMat.uniforms.uPR.value = 1
+      if (this.portExtraMat) this.portExtraMat.uniforms.uPR.value = 1
       this.setSize(window.innerWidth, window.innerHeight)
     }
     if (level === 2) {
@@ -863,7 +1005,8 @@ export default class OptimaScene {
   /**
    * Render one frame.
    * @param {{time:number, targetMorph:number, intro:number, scrollFrac:number,
-   *          mx:number, my:number, velS:number, snap:boolean, flowSpeed?:number}} s
+   *          mx:number, my:number, velS:number, shiftX?:number, snap:boolean,
+   *          flowSpeed?:number}} s
    * @returns {{stageChanged:boolean, morph:number}}
    */
   frame(s) {
@@ -878,6 +1021,12 @@ export default class OptimaScene {
     U.uFlow.value = fs
     U.uIntro.value = s.intro
 
+    const netW = 1 - clamp01(p)
+    const w4 = smooth(clamp01(p - 3))
+    const w5 = smooth(clamp01(p - 4))
+    const wordW = w4 * (1 - w5)
+    const portW = w5
+
     const stg = Math.round(s.targetMorph)
     let stageChanged = false
     if (this._stg === undefined) this._stg = stg
@@ -887,7 +1036,7 @@ export default class OptimaScene {
       stageChanged = true
     }
     this.pulse = (this.pulse || 0) * (s.snap ? 0 : 0.955)
-    if (this.bloom) this.bloom.strength = 0.55 + this.pulse * 0.7 + (this._fin || 0) * 0.35
+    if (this.bloom) this.bloom.strength = 0.55 + this.pulse * 0.7 + portW * 0.2
     if (this.gradePass) {
       this.gradePass.uniforms.uTime.value = time
       this.gradePass.uniforms.uCA.value = 1 + this.pulse * 7 + Math.min(3, Math.abs(s.velS) * 0.5)
@@ -898,7 +1047,6 @@ export default class OptimaScene {
         sp.position.y += Math.sin(time * 0.05 + i * 2) * 0.0008
       })
 
-    const netW = 1 - clamp01(p)
     if (this.netGroup) {
       this.netGroup.visible = netW > 0.02
       this.netLines.material.opacity = netW * (0.085 + 0.025 * Math.sin(time * 1.4))
@@ -908,28 +1056,18 @@ export default class OptimaScene {
       this.netCoresA.material.size = 0.44 + 0.04 * Math.sin(time * 1.9)
       this.netCoresB.material.opacity = netW * (0.24 + 0.05 * Math.sin(time * 2.6 + 1.3))
     }
-    const portW = smooth(clamp01(p - 2))
-    if (this.knotMesh) {
-      // crystal dissolves as the particles leave it for the portrait
-      const kr = smooth(clamp01(p - 1)) * (1 - portW)
-      this.knotMesh.visible = kr > 0.02
-      this.knotMat.uniforms.uOp.value = kr
-      this.knotMat.uniforms.uTime.value = time
-      this.knotMesh.scale.setScalar((0.94 + 0.06 * kr) * KNOT_SCALE)
-      this.knotMesh.position.y = Math.sin(time * 0.7) * 0.06 * kr
-      if (this.knotWire) this.knotWire.material.opacity = kr * 0.16
-      const fin = (this._fin = smooth(clamp01((s.scrollFrac - 0.88) / 0.1)) * kr)
-      if (this.crystalGlow) {
-        this.crystalGlow.material.opacity = kr * (0.3 + (this.pulse || 0) * 0.25) + fin * 0.25
-        this.crystalGlow.scale.setScalar((3.4 + 0.3 * Math.sin(time * 1.1)) * KNOT_SCALE)
-        this.crystalGlow.position.y = this.knotMesh.position.y
-      }
+
+    if (this.portExtra) {
+      this.portExtra.visible = portW > 0.01
+      this.portExtraMat.uniforms.uTime.value = time
+      this.portExtraMat.uniforms.uPortW.value = portW
     }
+
     const spd = this.opts.rotationSpeed
-    if (netW > 0.5 || portW > 0.05) {
-      // net and portrait stages must face the camera squarely
+    if (netW > 0.5 || wordW > 0.25 || portW > 0.05) {
+      // net, wordmark, and portrait stages must face the camera squarely
       const tgt = Math.round(this.spinner.rotation.y / (Math.PI * 2)) * Math.PI * 2
-      this.spinner.rotation.y += (tgt - this.spinner.rotation.y) * (0.06 + portW * 0.06)
+      this.spinner.rotation.y += (tgt - this.spinner.rotation.y) * (0.06 + (wordW + portW) * 0.06)
     } else {
       this.spinner.rotation.y += 0.0016 * spd * (1 - netW)
     }
@@ -980,9 +1118,9 @@ export default class OptimaScene {
       this.camera.updateProjectionMatrix()
     }
 
-    // terrain reveal (only once the net has dissolved); dims while the
-    // portrait forms so the figure owns the frame
-    const tw = s.intro * (1 - netW) * (1 - portW * 0.55)
+    // terrain reveal (once the net dissolves); dims while the wordmark and
+    // portrait own the frame
+    const tw = s.intro * (1 - netW) * (1 - wordW * 0.35 - portW * 0.55)
     if (this.terrMat) {
       this.terrain.visible = tw > 0.01
       this.terrMat.uniforms.uTime.value = time

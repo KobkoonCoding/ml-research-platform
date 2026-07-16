@@ -43,15 +43,18 @@ kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
 person = cv2.morphologyEx(person, cv2.MORPH_CLOSE, kernel, iterations=2)
 person = cv2.morphologyEx(person, cv2.MORPH_OPEN, kernel, iterations=1)
 
-# Drop the roof fragment GrabCut attaches below the left arm: it sits in
-# the lower-right of the bbox AND is much darker than skin/shirt there.
+# Drop the roof/railing fragments GrabCut attaches below the left arm:
+# they sit in the lower-right of the bbox and are either much darker than
+# skin (shadowed roof) or strongly orange (painted railing).
 gray_full = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
 ys0, xs0 = np.where(person > 0)
 bx0, bx1, by0, by1 = xs0.min(), xs0.max(), ys0.min(), ys0.max()
 bw, bh = bx1 - bx0, by1 - by0
 yy, xx = np.mgrid[0:sh, 0:sw]
-roof = (xx > bx0 + 0.70 * bw) & (yy > by0 + 0.36 * bh) & (gray_full < 75)
-person[roof] = 0
+bf, gf, rf = small[..., 0].astype(np.int32), small[..., 1].astype(np.int32), small[..., 2].astype(np.int32)
+orange = (rf > 110) & (rf * 10 > gf * 14)
+zone = (xx > bx0 + 0.70 * bw) & (yy > by0 + 0.36 * bh)
+person[zone & ((gray_full < 75) | orange)] = 0
 # re-clean after the cut
 person = cv2.morphologyEx(person, cv2.MORPH_OPEN, kernel, iterations=1)
 n2, labels2, stats2, _ = cv2.connectedComponentsWithStats(person, 8)
@@ -67,29 +70,34 @@ pad = int(0.03 * sw)
 x0, y0 = max(0, x0 - pad), max(0, y0 - pad)
 x1, y1 = min(sw, x1 + pad), min(sh, y1 + pad)
 
-gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
-crop_gray = gray[y0:y1, x0:x1]
+crop_col = small[y0:y1, x0:x1]
 crop_mask = person[y0:y1, x0:x1]
 
-# Slight contrast stretch inside the person so facial features survive
-inside = crop_gray[crop_mask > 0]
-lo, hi = np.percentile(inside, 3), np.percentile(inside, 97)
-crop_gray = np.clip((crop_gray.astype(np.float32) - lo) / max(1, hi - lo) * 255, 0, 255).astype(np.uint8)
+# Brightness normalize + saturation boost so the photo's colors survive
+# the dark additive-blend particle rendering on the landing page
+gray = cv2.cvtColor(crop_col, cv2.COLOR_BGR2GRAY)
+inside = gray[crop_mask > 0]
+hi = float(np.percentile(inside, 97))
+crop_col = np.clip(crop_col.astype(np.float32) * (232.0 / max(1.0, hi)), 0, 255).astype(np.uint8)
+hsv = cv2.cvtColor(crop_col, cv2.COLOR_BGR2HSV).astype(np.float32)
+hsv[..., 1] = np.clip(hsv[..., 1] * 1.3, 0, 255)
+crop_col = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
 
-# Final asset ~260px wide
+# Final asset ~260px wide (RGB = photo color, A = person mask)
 tw = 260
-th = int(crop_gray.shape[0] * tw / crop_gray.shape[1])
-g = cv2.resize(crop_gray, (tw, th), interpolation=cv2.INTER_AREA)
+th = int(crop_col.shape[0] * tw / crop_col.shape[1])
+col = cv2.resize(crop_col, (tw, th), interpolation=cv2.INTER_AREA)
 a = cv2.resize(crop_mask, (tw, th), interpolation=cv2.INTER_AREA)
 a = cv2.GaussianBlur(a, (3, 3), 0)
 
-rgba = cv2.merge([g, g, g, a])
+b, gch, r = cv2.split(col)
+rgba = cv2.merge([b, gch, r, a])
 cv2.imwrite(OUT, rgba)
 print("wrote", OUT, tw, "x", th)
 
 # Preview on dark background for visual check
 bg = np.full((th, tw, 3), 12, np.uint8)
 af = (a.astype(np.float32) / 255)[..., None]
-prev = (bg * (1 - af) + cv2.merge([g, g, g]) * af).astype(np.uint8)
+prev = (bg * (1 - af) + col * af).astype(np.uint8)
 cv2.imwrite(PREVIEW, prev)
 print("wrote preview")
