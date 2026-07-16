@@ -1,16 +1,14 @@
-import React, { Suspense, lazy, useRef, useState, useEffect } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { motion, useInView, useScroll, useTransform, useMotionTemplate, useMotionValue, AnimatePresence } from 'framer-motion'
-import {
-  Zap, ArrowRight, BrainCircuit, Database, Cpu, Sparkles,
-  MonitorPlay, Activity, FileCheck2, Beaker, GraduationCap, ShieldCheck, X, Menu
-} from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
-import DeveloperCard from '../components/landing/DeveloperCard'
 import SEO from '../components/SEO'
+import useLandingEngine from '../components/landing/v2/useLandingEngine'
+import '../components/landing/v2/landing-v2.css'
 
-// JSON-LD: ItemList of the three core modules. Helps search engines and
-// LLMs understand the platform structure.
+/* ═══════════════════════════════════════════════════════════════
+   SEO / JSON-LD (unchanged from v1 — content identity is the same)
+   ══════════════════════════════════════════════════════════════ */
+
 const LANDING_JSON_LD = {
   '@context': 'https://schema.org',
   '@graph': [
@@ -84,423 +82,195 @@ const LANDING_JSON_LD = {
   ],
 }
 
-const Spline = lazy(() => import('@splinetool/react-spline'))
-
 /* ═══════════════════════════════════════════════════════════════
-   MODULE DATA
+   CONTENT
    ══════════════════════════════════════════════════════════════ */
 
-const modules = [
-  {
-    id: 'forensic',
-    icon: Database,
-    title: 'Data Forensic & Cleaning',
-    subtitle: 'Step 01',
-    tagline: 'Clean, explore, and transform your data',
-    description: 'A dedicated laboratory for automated dataset cleansing, anomaly detection, and missing-value treatment — the essential first step before any ML pipeline.',
-    features: ['Auto-detect data quality issues', 'Handle missing values & outliers', 'Encode categories & scale features', 'Visual EDA with interactive charts'],
-    bestFor: 'Researchers preparing messy real-world datasets',
-    cta: 'Clean Your Data',
-    color: '#6366F1',
-    colorRgb: '99, 102, 241',
-    path: '/forensic',
-    illustration: 'chart',
-  },
-  {
-    id: 'elm-studio',
-    icon: Cpu,
-    title: 'ELM Studio',
-    subtitle: 'Step 02',
-    tagline: 'Train models with optimization-backed speed',
-    description: 'Extreme Learning Machine training powered by a proven optimization algorithm with theoretical convergence guarantees. Train classification models in milliseconds — no backpropagation needed.',
-    features: ['Optimization-based ELM with convergence guarantees', 'Configurable hidden nodes & activation', 'Automatic Min-Max scaling', 'Real-time prediction with probability'],
-    bestFor: 'Quick prototyping of classification & regression models',
-    cta: 'Train Your Model',
-    color: '#f59e0b',
-    colorRgb: '245, 158, 11',
-    path: '/elm-studio',
-    illustration: 'network',
-  },
-  {
-    id: 'deep-learning',
-    icon: BrainCircuit,
-    title: 'AI Model Hub',
-    subtitle: 'Step 03',
-    tagline: '9 live models across vision & medical AI',
-    description: 'A curated collection of pre-trained models — 3 image-classification backbones, 3 medical-imaging tasks, and 3 object-detectors. Upload an image and get instant predictions with attention heatmaps, bounding boxes, and 17-keypoint pose skeletons. Tabular classifiers coming soon.',
-    features: ['Image classification (ImageNet · Food-101 · Birds-525)', 'Medical imaging (X-ray · skin lesion · brain MRI) with attention heatmaps', 'Object detection + 17-keypoint pose estimation', 'Tabular classifiers — coming soon'],
-    bestFor: 'Researchers exploring pre-trained AI models across domains',
-    cta: 'Try Our Models',
-    color: '#F472B6',
-    colorRgb: '244, 114, 182',
-    path: '/deep-learning',
-    illustration: 'vision',
-  }
+const SECTION_IDS = ['hero', 'clean', 'train', 'try', 'gallery', 'cta']
+
+const DOTS = [
+  { target: 'hero', title: 'Intro' },
+  { target: 'clean', title: 'Clean' },
+  { target: 'train', title: 'Train' },
+  { target: 'try', title: 'Try' },
+  { target: 'gallery', title: 'Showcase' },
+  { target: 'cta', title: 'Start' },
 ]
 
-const steps = [
+const TICKER_WORDS = ['Clean', 'Train', 'Try', 'Descend', 'Converge', 'Predict']
+
+const GALLERY_CARDS = [
   {
-    icon: FileCheck2,
-    title: '1. Prepare Your Data',
-    desc: 'Upload CSV/Excel files. Our forensic lab auto-detects data issues: missing values, outliers, duplicates. Preview your data with interactive charts.'
+    img: '/samples/xray-pneumonia.jpg', tag: 'xray.img',
+    title: 'Chest X-ray screening', desc: 'DenseNet-121 with Grad-CAM attention.',
   },
   {
-    icon: Activity,
-    title: '2. Train the Model',
-    desc: 'Configure your model and let our optimization algorithm train it in milliseconds with theoretical convergence guarantees. Evaluate with confusion matrices, ROC curves, and cross-validation.'
+    img: '/samples/brain-glioma.jpg', tag: 'mri.img',
+    title: 'Brain tumor MRI', desc: 'Vision Transformer with attention rollout.',
   },
   {
-    icon: MonitorPlay,
-    title: '3. Explore AI Models',
-    desc: 'Try pre-trained models for image classification, medical imaging, and more. Upload your data and get real-time predictions with confidence scores.'
-  }
+    img: '/samples/pose-group.jpg', tag: 'detect.img',
+    title: 'Object detection', desc: 'YOLOv8 across 80 everyday classes.',
+  },
+  {
+    img: '/samples/cat.jpg', tag: 'imagenet.img',
+    title: 'General image classification', desc: 'ImageNet-1k, EfficientNetV2 backbone.',
+  },
 ]
 
 /* ═══════════════════════════════════════════════════════════════
-   ANIMATION VARIANTS
+   SHARED STYLE FRAGMENTS (prototype-exact values)
    ══════════════════════════════════════════════════════════════ */
 
-const staggerContainer = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.15, delayChildren: 0.1 }
-  }
+const heroCardStyle = (side) => ({
+  position: 'absolute',
+  ...(side === 'right'
+    ? { right: 'clamp(20px,7vw,110px)', textAlign: 'right', transformOrigin: 'right center' }
+    : { left: 'clamp(20px,7vw,110px)', textAlign: 'left', transformOrigin: 'left center' }),
+  maxWidth: 'min(560px,52vw)',
+  willChange: 'transform,opacity,filter',
+  textShadow: '0 0 36px rgba(4,5,9,0.94),0 2px 12px rgba(4,5,9,0.92)',
+  opacity: 0,
+  padding: 'clamp(26px,3vw,42px)',
+  borderRadius: 28,
+  background: 'rgba(7,9,15,0.38)',
+  border: '1px solid rgba(255,255,255,0.06)',
+  backdropFilter: 'blur(16px) saturate(1.2)',
+  WebkitBackdropFilter: 'blur(16px) saturate(1.2)',
+  boxShadow: '0 30px 80px -30px rgba(0,0,0,0.55)',
+})
+
+const heroH2Style = {
+  fontWeight: 200,
+  lineHeight: 1.02,
+  letterSpacing: '-0.025em',
+  fontSize: 'clamp(1.8rem,4.2vw,3.9rem)',
 }
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 40, scale: 0.95 },
-  show: { 
-    opacity: 1, 
-    y: 0, 
-    scale: 1, 
-    transition: { type: 'spring', stiffness: 60, damping: 15 } 
-  }
+const moduleSectionStyle = {
+  position: 'relative',
+  zIndex: 2,
+  padding: 'clamp(70px,12vh,150px) clamp(20px,7vw,120px)',
 }
 
-const slideInRight = {
-  hidden: { opacity: 0, x: 50 },
-  show: { 
-    opacity: 1, 
-    x: 0, 
-    transition: { type: 'spring', stiffness: 60, damping: 20 } 
-  }
+const moduleGridStyle = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))',
+  gap: 'clamp(36px,5vw,90px)',
+  alignItems: 'center',
+  maxWidth: 1300,
+  margin: '0 auto',
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   MODULE ILLUSTRATION COMPONENT
-   ══════════════════════════════════════════════════════════════ */
-
-function ModuleIllustration({ type }) {
-  if (type === 'chart') {
-    return (
-      <svg width="120" height="80" viewBox="0 0 120 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#818CF8" />
-            <stop offset="100%" stopColor="#4F46E5" />
-          </linearGradient>
-        </defs>
-        <style>{`
-          @keyframes barGrow0 { 0%,10% { height:0; y:75; } 30% { height:35; y:40; } 100% { height:35; y:40; } }
-          @keyframes barGrow1 { 0%,15% { height:0; y:75; } 35% { height:55; y:20; } 100% { height:55; y:20; } }
-          @keyframes barGrow2 { 0%,20% { height:0; y:75; } 40% { height:25; y:50; } 100% { height:25; y:50; } }
-          @keyframes barGrow3 { 0%,25% { height:0; y:75; } 45% { height:45; y:30; } 100% { height:45; y:30; } }
-          @keyframes barGrow4 { 0%,30% { height:0; y:75; } 50% { height:60; y:15; } 100% { height:60; y:15; } }
-          @keyframes barPulse { 0%,100% { opacity:0.85; } 50% { opacity:1; } }
-          .bar { animation: barPulse 3s ease-in-out infinite; }
-          .bar0 { animation: barGrow0 2s ease-out forwards, barPulse 3s ease-in-out 2s infinite; }
-          .bar1 { animation: barGrow1 2s ease-out forwards, barPulse 3s ease-in-out 2.15s infinite; }
-          .bar2 { animation: barGrow2 2s ease-out forwards, barPulse 3s ease-in-out 2.3s infinite; }
-          .bar3 { animation: barGrow3 2s ease-out forwards, barPulse 3s ease-in-out 2.45s infinite; }
-          .bar4 { animation: barGrow4 2s ease-out forwards, barPulse 3s ease-in-out 2.6s infinite; }
-        `}</style>
-        <line x1="10" y1="75" x2="115" y2="75" stroke="#6366F133" strokeWidth="1" />
-        <rect className="bar0" x="14" y="75" width="14" rx="3" height="0" fill="url(#barGrad)" />
-        <rect className="bar1" x="34" y="75" width="14" rx="3" height="0" fill="url(#barGrad)" />
-        <rect className="bar2" x="54" y="75" width="14" rx="3" height="0" fill="url(#barGrad)" />
-        <rect className="bar3" x="74" y="75" width="14" rx="3" height="0" fill="url(#barGrad)" />
-        <rect className="bar4" x="94" y="75" width="14" rx="3" height="0" fill="url(#barGrad)" />
-      </svg>
-    )
-  }
-
-  if (type === 'network') {
-    return (
-      <svg width="120" height="80" viewBox="0 0 120 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="netGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#FBBF24" />
-            <stop offset="100%" stopColor="#F59E0B" />
-          </linearGradient>
-        </defs>
-        <style>{`
-          @keyframes nodeIn { 0% { opacity:0; r:0; } 100% { opacity:1; r:5; } }
-          @keyframes lineIn { 0% { opacity:0; } 100% { opacity:0.3; } }
-          @keyframes pulse { 0%,100% { opacity:0.3; } 50% { opacity:0.7; } }
-          .node { animation: nodeIn 0.5s ease-out forwards; }
-          .n0 { animation-delay:0s; } .n1 { animation-delay:0.1s; } .n2 { animation-delay:0.2s; }
-          .n3 { animation-delay:0.3s; } .n4 { animation-delay:0.35s; } .n5 { animation-delay:0.4s; } .n6 { animation-delay:0.45s; }
-          .n7 { animation-delay:0.6s; }
-          .link { opacity:0; animation: lineIn 0.4s ease-out forwards, pulse 3s ease-in-out 1s infinite; }
-          .l0 { animation-delay:0.5s,1.5s; } .l1 { animation-delay:0.55s,1.55s; } .l2 { animation-delay:0.6s,1.6s; }
-          .l3 { animation-delay:0.65s,1.65s; } .l4 { animation-delay:0.7s,1.7s; } .l5 { animation-delay:0.75s,1.75s; }
-          .l6 { animation-delay:0.8s,1.8s; } .l7 { animation-delay:0.85s,1.85s; } .l8 { animation-delay:0.9s,1.9s; }
-          .l9 { animation-delay:0.95s,1.95s; } .l10 { animation-delay:1s,2s; } .l11 { animation-delay:1.05s,2.05s; }
-        `}</style>
-        {/* Links: input->hidden */}
-        <line className="link l0" x1="15" y1="15" x2="50" y2="12" stroke="#FBBF24" strokeWidth="1" />
-        <line className="link l1" x1="15" y1="15" x2="50" y2="30" stroke="#FBBF24" strokeWidth="1" />
-        <line className="link l2" x1="15" y1="40" x2="50" y2="30" stroke="#FBBF24" strokeWidth="1" />
-        <line className="link l3" x1="15" y1="40" x2="50" y2="50" stroke="#FBBF24" strokeWidth="1" />
-        <line className="link l4" x1="15" y1="65" x2="50" y2="50" stroke="#FBBF24" strokeWidth="1" />
-        <line className="link l5" x1="15" y1="65" x2="50" y2="68" stroke="#FBBF24" strokeWidth="1" />
-        <line className="link l6" x1="15" y1="15" x2="50" y2="50" stroke="#FBBF24" strokeWidth="1" />
-        <line className="link l7" x1="15" y1="65" x2="50" y2="12" stroke="#FBBF24" strokeWidth="1" />
-        {/* Links: hidden->output */}
-        <line className="link l8" x1="50" y1="12" x2="100" y2="40" stroke="#FBBF24" strokeWidth="1" />
-        <line className="link l9" x1="50" y1="30" x2="100" y2="40" stroke="#FBBF24" strokeWidth="1" />
-        <line className="link l10" x1="50" y1="50" x2="100" y2="40" stroke="#FBBF24" strokeWidth="1" />
-        <line className="link l11" x1="50" y1="68" x2="100" y2="40" stroke="#FBBF24" strokeWidth="1" />
-        {/* Input nodes */}
-        <circle className="node n0" cx="15" cy="15" r="0" fill="url(#netGrad)" opacity="0" />
-        <circle className="node n1" cx="15" cy="40" r="0" fill="url(#netGrad)" opacity="0" />
-        <circle className="node n2" cx="15" cy="65" r="0" fill="url(#netGrad)" opacity="0" />
-        {/* Hidden nodes */}
-        <circle className="node n3" cx="50" cy="12" r="0" fill="url(#netGrad)" opacity="0" />
-        <circle className="node n4" cx="50" cy="30" r="0" fill="url(#netGrad)" opacity="0" />
-        <circle className="node n5" cx="50" cy="50" r="0" fill="url(#netGrad)" opacity="0" />
-        <circle className="node n6" cx="50" cy="68" r="0" fill="url(#netGrad)" opacity="0" />
-        {/* Output node */}
-        <circle className="node n7" cx="100" cy="40" r="0" fill="url(#netGrad)" opacity="0" />
-      </svg>
-    )
-  }
-
-  if (type === 'vision') {
-    return (
-      <svg width="120" height="80" viewBox="0 0 120 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="eyeGrad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#F472B6" />
-            <stop offset="100%" stopColor="#EC4899" />
-          </linearGradient>
-        </defs>
-        <style>{`
-          @keyframes scanLine { 0% { transform:translateX(-50px); opacity:0; } 10% { opacity:1; } 90% { opacity:1; } 100% { transform:translateX(50px); opacity:0; } }
-          @keyframes blink { 0%,38%,42%,100% { transform:scaleY(1); } 40% { transform:scaleY(0.1); } }
-          .scan { animation: scanLine 3s ease-in-out infinite; }
-          .eyeGroup { animation: blink 5s ease-in-out infinite; transform-origin: 60px 40px; }
-        `}</style>
-        <g className="eyeGroup">
-          {/* Eye outline */}
-          <path d="M15 40 Q60 5 105 40 Q60 75 15 40Z" stroke="url(#eyeGrad)" strokeWidth="2" fill="none" opacity="0.6" />
-          {/* Iris */}
-          <circle cx="60" cy="40" r="14" stroke="url(#eyeGrad)" strokeWidth="1.5" fill="none" opacity="0.5" />
-          {/* Pupil */}
-          <circle cx="60" cy="40" r="6" fill="url(#eyeGrad)" opacity="0.7" />
-          {/* Scan line */}
-          <rect className="scan" x="35" y="20" width="2" height="40" rx="1" fill="#F472B6" opacity="0.8" />
-        </g>
-      </svg>
-    )
-  }
-
-  return null
+const ghostNumStyle = {
+  fontWeight: 300,
+  fontSize: 'clamp(3rem,7vw,6rem)',
+  color: 'rgba(255,255,255,0.14)',
+  lineHeight: 1,
+  letterSpacing: '-0.02em',
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   MODULE CARD COMPONENT
-   ══════════════════════════════════════════════════════════════ */
+const moduleH3Style = {
+  fontWeight: 300,
+  fontSize: 'clamp(2rem,4vw,3.4rem)',
+  letterSpacing: '-0.02em',
+  lineHeight: 1.05,
+  marginTop: 12,
+}
 
-function InteractiveModuleCard({ module, index }) {
-  const ref = useRef()
-  const mouseX = useMotionValue(0)
-  const mouseY = useMotionValue(0)
-  const isInView = useInView(ref, { once: true, margin: '-50px' })
+const moduleParaStyle = {
+  color: '#c6cddc',
+  fontSize: 'clamp(15.5px,1.25vw,17.5px)',
+  lineHeight: 1.65,
+  maxWidth: '44ch',
+  marginTop: 22,
+}
 
-  function handleMouseMove({ currentTarget, clientX, clientY }) {
-    const { left, top } = currentTarget.getBoundingClientRect()
-    mouseX.set(clientX - left)
-    mouseY.set(clientY - top)
-  }
+const featureListStyle = {
+  listStyle: 'none',
+  marginTop: 28,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 12,
+  fontSize: 15.5,
+  padding: 0,
+}
 
-  const bgGradient = useMotionTemplate`radial-gradient(350px circle at ${mouseX}px ${mouseY}px, rgba(${module.colorRgb}, 0.18), transparent 80%)`
-  const Icon = module.icon
+// Glass panel behind each module's text column — body copy floats over
+// the 3D scene otherwise and gets hard to read on bright terrain areas.
+const moduleTextPanelStyle = {
+  padding: 'clamp(22px,2.6vw,36px)',
+  borderRadius: 24,
+  background: 'rgba(7,9,15,0.5)',
+  border: '1px solid rgba(255,255,255,0.06)',
+  backdropFilter: 'blur(14px) saturate(1.15)',
+  WebkitBackdropFilter: 'blur(14px) saturate(1.15)',
+  boxShadow: '0 24px 60px -30px rgba(0,0,0,0.55)',
+}
 
+function Feature({ children }) {
   return (
-    <motion.div variants={fadeUp} className="w-full">
-      <Link to={module.path} className="block outline-none">
-        <motion.div
-          onMouseMove={handleMouseMove}
-          whileHover={{ x: 6, scale: 1.01 }}
-          whileTap={{ scale: 0.98 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-          className="group relative rounded-[1.5rem] overflow-hidden cursor-pointer shadow-lg hover:shadow-2xl transition-shadow duration-300"
-        >
-          <div className="absolute inset-0 rounded-[1.5rem] border border-white/10 pointer-events-none z-20 transition-colors duration-300 group-hover:border-white/30" />
-          <motion.div
-            className="absolute inset-0 z-10 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-            style={{ background: bgGradient, willChange: 'opacity' }}
-          />
-          <div
-            className="relative z-30 p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center gap-6 backdrop-blur-sm"
-            style={{ background: 'rgba(14, 14, 14, 0.7)' }}
-          >
-            <motion.div
-              whileHover={{ rotate: 5, scale: 1.1 }}
-              className="w-14 h-14 shrink-0 rounded-2xl flex items-center justify-center border border-white/10"
-              style={{ background: `${module.color}18` }}
-            >
-              <Icon className="w-7 h-7" style={{ color: module.color }} />
-            </motion.div>
-            <div className="flex-1">
-              <span className="text-xs font-black tracking-[0.2em] uppercase mb-1 block" style={{ color: module.color }}>
-                {module.subtitle}
-              </span>
-              <h3 className="text-xl md:text-2xl font-black tracking-tight mb-1 text-white relative transition-all duration-300" style={{ fontFamily: 'var(--font-display)' }}>
-                <span className="opacity-100 group-hover:opacity-0 transition-opacity duration-300">{module.title}</span>
-                <span className="absolute left-0 top-0 text-transparent bg-clip-text opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" style={{ backgroundImage: `linear-gradient(to right, #fff, ${module.color})` }}>
-                  {module.title}
-                </span>
-              </h3>
-              <p className="text-white/70 text-sm italic mb-2">{module.tagline}</p>
-              <p className="text-white/75 text-sm leading-relaxed mb-2">{module.features.join(' \u00b7 ')}</p>
-              <p className="text-xs text-white/60 uppercase tracking-wider">Best for: <span className="text-white/75">{module.bestFor}</span></p>
-            </div>
-            <div className="hidden md:flex items-center shrink-0">
-              <ModuleIllustration type={module.illustration} />
-            </div>
-            <div className="shrink-0 flex items-center gap-3">
-              <span className="text-sm font-bold text-white/70 group-hover:text-white transition-colors">{module.cta}</span>
-              <div
-                className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center border border-white/10 group-hover:bg-white group-hover:border-white transition-all duration-200"
-                style={{ background: `${module.color}25` }}
-              >
-                <ArrowRight className="w-4 h-4 text-white group-hover:text-black transition-colors" />
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      </Link>
-    </motion.div>
+    <li style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}>
+      <span style={{ color: '#6da8ff' }}>—</span>
+      {children}
+    </li>
   )
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   ROBOT SPLINE PANEL — lazy-mounts the second Spline scene only when
-   the panel scrolls near the viewport. Saves ~3 MB of bandwidth +
-   GPU work on initial paint, since the hero already loads one scene.
-   ══════════════════════════════════════════════════════════════ */
-
-function RobotSplinePanel({ style }) {
-  const ref = useRef(null)
-  const inView = useInView(ref, { margin: '300px 0px', once: true })
-
+function TickerGroup() {
   return (
-    <motion.div
-      ref={ref}
-      style={style}
-      className="w-full lg:w-[45%] h-[500px] lg:h-auto lg:sticky lg:top-24 rounded-[3rem] border border-white/5 overflow-hidden pointer-events-auto relative shadow-[0_0_100px_rgba(0,0,0,0.5)]"
+    <div
+      style={{
+        display: 'flex', alignItems: 'center',
+        gap: 'clamp(30px,4vw,60px)', paddingRight: 'clamp(30px,4vw,60px)',
+      }}
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-[#111] to-black" />
-      <div
-        className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.1)_1px,transparent_1px)]"
-        style={{ backgroundSize: '24px 24px' }}
-      />
-
-      {/* Spline only mounts after the panel approaches the viewport */}
-      <div className="absolute inset-0 z-10">
-        {inView && (
-          <Suspense fallback={null}>
-            <Spline scene="https://prod.spline.design/aTL6-pdugzBTCP3t/scene.splinecode" />
-          </Suspense>
-        )}
-      </div>
-      <div className="absolute inset-0 rounded-[3rem] border border-white/5 pointer-events-none z-20" />
-      <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#050505] to-transparent pointer-events-none z-20" />
-    </motion.div>
+      {TICKER_WORDS.map((w) => (
+        <React.Fragment key={w}>
+          <span
+            className="lv2-serif"
+            style={{
+              fontWeight: 200, fontStyle: 'italic',
+              fontSize: 'clamp(1.5rem,2.4vw,2.2rem)', letterSpacing: '-0.01em',
+              color: '#dfe9ff', whiteSpace: 'nowrap',
+            }}
+          >
+            {w}
+          </span>
+          <span
+            style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: 'rgba(109,168,255,0.7)', flex: '0 0 auto',
+            }}
+          />
+        </React.Fragment>
+      ))}
+    </div>
   )
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   MAIN LANDING PAGE
+   PAGE
    ══════════════════════════════════════════════════════════════ */
-
-/* ═══════════════════════════════════════════════════════════════
-   NAVBAR LINKS — anchor scroll for landing sections, route for /docs
-   ══════════════════════════════════════════════════════════════ */
-
-const NAV_LINKS = [
-  { id: 'about', label: 'About', href: '#about' },
-  { id: 'modules', label: 'Modules', href: '#modules' },
-  { id: 'workflow', label: 'Workflow', href: '#workflow' },
-  { id: 'docs', label: 'Docs', href: '/docs', external: true },
-]
-
-function smoothScrollTo(href) {
-  if (!href.startsWith('#')) return false
-  const el = document.querySelector(href)
-  if (!el) return false
-  el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  return true
-}
 
 export default function LandingPage() {
   const navigate = useNavigate()
-  const [showModuleModal, setShowModuleModal] = useState(false)
-  const [scrolled, setScrolled] = useState(false)
-  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const { theme } = useTheme()
+  const { refs, toggleSound, scrollToId } = useLandingEngine({ sectionIds: SECTION_IDS })
+  const [soundOn, setSoundOn] = useState(false)
 
-  // Sticky-nav scroll detector
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 60)
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
+  let initialLoaderVisible = true
+  try {
+    initialLoaderVisible = sessionStorage.getItem('nexus:intro-seen') !== '1'
+  } catch { /* private mode: show it */ }
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) initialLoaderVisible = false
 
-  // Esc closes the module modal AND mobile nav drawer
-  useEffect(() => {
-    if (!showModuleModal && !mobileNavOpen) return
-    const onKey = (e) => {
-      if (e.key === 'Escape') {
-        setShowModuleModal(false)
-        setMobileNavOpen(false)
-      }
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [showModuleModal, mobileNavOpen])
-
-  // Lock body scroll while mobile drawer is open (prevents background scroll)
-  useEffect(() => {
-    if (!mobileNavOpen) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = prev }
-  }, [mobileNavOpen])
-
-  const handleNavClick = (e, link) => {
-    if (link.external) return // let <Link> / browser handle route
-    e.preventDefault()
-    setMobileNavOpen(false)
-    smoothScrollTo(link.href)
-  }
-
-  // Landing page MUST always render dark because:
-  // 1. It uses a 3D Spline background whose colors are baked in and cannot re-theme
-  // 2. Several cards use `backdrop-blur-sm` + `rgba(14,14,14,0.7)` (30% transparent)
-  //    which would pull the light body background through if `data-theme="light"`,
-  //    making them appear gray/washed-out instead of dark
-  //
-  // Strategy: while mounted, force `data-theme="dark"` on <html>. On unmount,
-  // restore to the ThemeContext's CURRENT theme (via ref, so we never restore a
-  // stale value captured at mount time — that was the bug in the previous attempt).
+  // Landing always renders dark (WebGL scene has baked dark palette).
+  // Restore the user's chosen theme on unmount — same strategy as v1.
   const themeRef = useRef(theme)
-  useEffect(() => { themeRef.current = theme }, [theme])
-
+  useEffect(() => {
+    themeRef.current = theme
+  }, [theme])
   useEffect(() => {
     const root = document.documentElement
     root.setAttribute('data-theme', 'dark')
@@ -514,15 +284,15 @@ export default function LandingPage() {
     }
   }, [])
 
-  // Custom Parallax Scroll hooks
-  const { scrollY } = useScroll()
-  const heroTextY = useTransform(scrollY, [0, 1000], [0, 300])
-  const heroOpacity = useTransform(scrollY, [0, 500], [1, 0])
-  const robotOpacity = useTransform(scrollY, [300, 700, 1500, 2000], [0, 1, 1, 0])
-  const robotY = useTransform(scrollY, [300, 700], [100, 0])
+  const handleAnchor = (e, id) => {
+    e.preventDefault()
+    scrollToId(id)
+  }
+
+  const navLinkStyle = { opacity: 0.55 }
 
   return (
-    <div className="relative font-sans bg-[#050505] text-white selection:bg-primary/30" data-theme="dark">
+    <div ref={refs.root} className="landing-v2" style={{ position: 'relative', width: '100%', background: '#06070c' }}>
       <SEO
         path="/"
         title="NEXUS — ML Research Platform · Mathematical Optimization for Machine Learning"
@@ -530,543 +300,626 @@ export default function LandingPage() {
         jsonLd={LANDING_JSON_LD}
       />
 
-      {/* Ambient gradient blobs — mobile uses smaller blur to keep FPS up */}
-      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden" aria-hidden>
+      {/* WebGL background + vignette + grain */}
+      <canvas ref={refs.bgCanvas} style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', zIndex: 0 }} />
+      <div
+        style={{
+          position: 'fixed', inset: 0, zIndex: 1, pointerEvents: 'none',
+          background: 'radial-gradient(circle at 50% 44%, transparent 34%, rgba(6,7,12,0.74) 100%)',
+        }}
+      />
+      <div
+        data-grain
+        style={{
+          position: 'fixed', inset: 0, zIndex: 140, pointerEvents: 'none',
+          opacity: 0.055, mixBlendMode: 'overlay',
+          backgroundImage:
+            "url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%22120%22><filter id=%22n%22><feTurbulence type=%22fractalNoise%22 baseFrequency=%220.9%22 numOctaves=%222%22/></filter><rect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23n)%22/></svg>')",
+        }}
+      />
+
+      {/* Custom cursor */}
+      <div
+        data-cursor
+        ref={refs.cursor}
+        style={{
+          position: 'fixed', top: 0, left: 0, width: 26, height: 26,
+          border: '1px solid rgba(180,205,255,0.7)', borderRadius: '50%',
+          transform: 'translate(-50%,-50%)', pointerEvents: 'none', zIndex: 150,
+          mixBlendMode: 'difference', willChange: 'left,top',
+        }}
+      />
+
+      {/* Loader */}
+      {initialLoaderVisible && (
         <div
-          className="absolute -top-1/4 -left-1/4 w-[60vw] h-[60vw] rounded-full bg-primary/15 blur-[60px] md:blur-[120px] animate-[pulse_8s_ease-in-out_infinite]"
-          style={{ willChange: 'opacity' }}
-        />
-        <div
-          className="absolute -bottom-1/4 -right-1/4 w-[50vw] h-[50vw] rounded-full bg-secondary/10 blur-[60px] md:blur-[100px] animate-[pulse_12s_ease-in-out_infinite_2s]"
-          style={{ willChange: 'opacity' }}
-        />
+          ref={refs.loader}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 200, background: '#06070c',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            transition: 'transform 1s cubic-bezier(.76,0,.24,1)',
+          }}
+        >
+          <div className="lv2-label" style={{ marginBottom: 28 }}>Nexus</div>
+          <div
+            ref={refs.counter}
+            className="lv2-serif"
+            style={{ fontWeight: 200, fontSize: 'clamp(4rem,16vw,13rem)', lineHeight: 1, letterSpacing: '-0.02em' }}
+          >
+            000
+          </div>
+          <div
+            style={{
+              fontSize: 11, letterSpacing: '0.32em', textTransform: 'uppercase',
+              color: '#5a6273', marginTop: 26,
+            }}
+          >
+            Where Mathematics Meets Machine Learning
+          </div>
+        </div>
+      )}
+
+      {/* Scroll progress bar */}
+      <div
+        ref={refs.progress}
+        style={{
+          position: 'fixed', top: 0, left: 0, height: 2, width: '0%',
+          background: 'linear-gradient(90deg,#6da8ff,#b79dff)', zIndex: 130,
+        }}
+      />
+
+      {/* Section dots */}
+      <div
+        data-dots
+        style={{
+          position: 'fixed', right: 22, top: '50%', transform: 'translateY(-50%)',
+          zIndex: 115, display: 'flex', flexDirection: 'column', gap: 14,
+        }}
+      >
+        {DOTS.map((d) => (
+          <a
+            key={d.target}
+            data-dot
+            href={`#${d.target}`}
+            title={d.title}
+            onClick={(e) => handleAnchor(e, d.target)}
+            style={{
+              width: 8, height: 8, borderRadius: '50%',
+              border: '1px solid rgba(180,205,255,0.4)', background: 'transparent',
+              display: 'block', transition: 'all .35s', cursor: 'pointer',
+            }}
+          />
+        ))}
       </div>
 
-      {/* Navigation — sticky, gains backdrop-blur after first scroll */}
+      {/* Nav */}
       <nav
-        className={`fixed top-0 left-0 w-full px-6 lg:px-12 z-50 transition-all duration-300 ${
-          scrolled
-            ? 'py-3 bg-black/65 backdrop-blur-xl border-b border-white/10 shadow-lg'
-            : 'py-6 bg-transparent border-b border-transparent'
-        }`}
+        ref={refs.nav}
+        style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 110,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '20px clamp(20px,5vw,64px)',
+          transition: 'background .5s, backdrop-filter .5s, border-color .5s',
+          borderBottom: '1px solid transparent',
+        }}
       >
-        <div className="max-w-[1400px] mx-auto flex items-center justify-between">
-          {/* Logo — also scrolls to top */}
-          <motion.button
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5 }}
-            className="flex items-center gap-2.5 font-black text-lg tracking-tight text-white outline-none"
-            aria-label="Back to top"
+        <a
+          href="#hero"
+          onClick={(e) => handleAnchor(e, 'hero')}
+          className="lv2-serif"
+          style={{ fontSize: 22, letterSpacing: '-0.01em', fontWeight: 400 }}
+        >
+          Nexus<span style={{ color: '#6da8ff' }}>.</span>
+        </a>
+        <div
+          style={{
+            display: 'flex', gap: 'clamp(16px,2.4vw,38px)', alignItems: 'center',
+            fontSize: 13, letterSpacing: '0.02em',
+          }}
+        >
+          <a data-nav-desktop href="#clean" onClick={(e) => handleAnchor(e, 'clean')} style={navLinkStyle}>Clean</a>
+          <a data-nav-desktop href="#train" onClick={(e) => handleAnchor(e, 'train')} style={navLinkStyle}>Train</a>
+          <a data-nav-desktop href="#try" onClick={(e) => handleAnchor(e, 'try')} style={navLinkStyle}>Try</a>
+          <a data-nav-desktop href="#gallery" onClick={(e) => handleAnchor(e, 'gallery')} style={navLinkStyle}>Showcase</a>
+          <Link data-nav-desktop to="/docs" style={navLinkStyle}>Docs</Link>
+          <a
+            data-nav-desktop
+            onClick={() => setSoundOn(toggleSound())}
+            style={{ ...navLinkStyle, cursor: 'pointer' }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter') setSoundOn(toggleSound()) }}
           >
-            <Zap className="w-5 h-5 text-primary" />
-            NEXUS
-          </motion.button>
-
-          {/* Desktop links */}
-          <div className="hidden md:flex items-center gap-8">
-            {NAV_LINKS.map((link) =>
-              link.external ? (
-                <Link
-                  key={link.id}
-                  to={link.href}
-                  className="text-sm font-bold text-white/70 hover:text-white transition-colors no-underline"
-                >
-                  {link.label}
-                </Link>
-              ) : (
-                <a
-                  key={link.id}
-                  href={link.href}
-                  onClick={(e) => handleNavClick(e, link)}
-                  className="text-sm font-bold text-white/70 hover:text-white transition-colors"
-                >
-                  {link.label}
-                </a>
-              )
-            )}
-            <button
-              onClick={() => setShowModuleModal(true)}
-              className="ml-2 px-5 py-2 rounded-full bg-white text-black font-bold text-xs hover:scale-[1.04] transition-transform shadow-[0_0_20px_rgba(255,255,255,0.15)]"
-            >
-              Get Started
-            </button>
-          </div>
-
-          {/* Mobile hamburger */}
-          <button
-            onClick={() => setMobileNavOpen((v) => !v)}
-            className="md:hidden w-10 h-10 rounded-xl border border-white/15 bg-white/5 flex items-center justify-center text-white hover:bg-white/10 transition-colors"
-            aria-label={mobileNavOpen ? 'Close menu' : 'Open menu'}
-            aria-expanded={mobileNavOpen}
-          >
-            {mobileNavOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
+            Sound · {soundOn ? 'on' : 'off'}
+          </a>
+          <a data-magnet href="#cta" onClick={(e) => handleAnchor(e, 'cta')} className="lv2-pill">
+            Get Started
+          </a>
         </div>
-
-        {/* Mobile drawer */}
-        <AnimatePresence>
-          {mobileNavOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-              className="md:hidden absolute left-0 right-0 top-full mt-2 mx-4 rounded-2xl border border-white/10 bg-black/85 backdrop-blur-xl p-4 shadow-2xl"
-            >
-              <div className="flex flex-col gap-1">
-                {NAV_LINKS.map((link) =>
-                  link.external ? (
-                    <Link
-                      key={link.id}
-                      to={link.href}
-                      onClick={() => setMobileNavOpen(false)}
-                      className="px-4 py-3 rounded-xl text-sm font-bold text-white/80 hover:text-white hover:bg-white/10 transition-colors no-underline"
-                    >
-                      {link.label}
-                    </Link>
-                  ) : (
-                    <a
-                      key={link.id}
-                      href={link.href}
-                      onClick={(e) => handleNavClick(e, link)}
-                      className="px-4 py-3 rounded-xl text-sm font-bold text-white/80 hover:text-white hover:bg-white/10 transition-colors"
-                    >
-                      {link.label}
-                    </a>
-                  )
-                )}
-                <button
-                  onClick={() => { setMobileNavOpen(false); setShowModuleModal(true) }}
-                  className="mt-2 px-4 py-3 rounded-xl bg-white text-black font-black text-sm flex items-center justify-center gap-2"
-                >
-                  Get Started <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </nav>
 
-      <main className="relative z-10 overflow-hidden">
+      {/* ═══ HERO — 520vh pinned scroll story ═══ */}
+      <section id="hero" ref={refs.heroWrap} style={{ position: 'relative', height: '520vh', zIndex: 2 }}>
+        <div style={{ position: 'sticky', top: 0, height: '100vh', overflow: 'hidden', perspective: 1200 }}>
+          <div style={{ position: 'absolute', inset: '0 auto 0 0', width: '48%', pointerEvents: 'none', background: 'linear-gradient(90deg,rgba(6,7,12,0.76),rgba(6,7,12,0.34) 44%,transparent)' }} />
+          <div style={{ position: 'absolute', inset: '0 0 0 auto', width: '48%', pointerEvents: 'none', background: 'linear-gradient(270deg,rgba(6,7,12,0.76),rgba(6,7,12,0.34) 44%,transparent)' }} />
 
-
-        {/* ═══════════════════════════════════════════════════════
-            SECTION 1 — HERO
-            ══════════════════════════════════════════════════════ */}
-        <section id="hero" className="relative z-10 h-[100svh] overflow-hidden bg-[#050505] scroll-mt-20">
-
-          {/* Spline — absolute full-screen background */}
-          <div className="absolute inset-0 pointer-events-auto">
-            <Suspense fallback={null}>
-              <Spline scene="https://prod.spline.design/pNfy02-sBsWBu8R3/scene.splinecode" />
-            </Suspense>
-          </div>
-
-          {/* Dark overlay so text is readable over the wave */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/20 to-black/80 pointer-events-none z-10" />
-
-          {/* Text — overlays on top, upper-center, with parallax.
-              pt-24 reserves space for the fixed navbar (py-6 + line-height ≈ 72px).
-              On taller screens justify-center still keeps content visually centered. */}
-          <motion.div
-            style={{ y: heroTextY, opacity: heroOpacity }}
-            className="absolute inset-0 z-20 flex flex-col items-center justify-center px-6 lg:px-12 pt-24 lg:pt-28 pb-16"
+          {/* Step 0 — intro. Title pinned near the top, subtitle + CTAs at
+              the bottom, so the mid-screen band stays clear for the 3D net. */}
+          <div
+            data-hero-step
+            style={{
+              position: 'absolute', inset: 0,
+              textAlign: 'center', transformOrigin: 'center center',
+              willChange: 'transform,opacity,filter',
+              textShadow: '0 0 44px rgba(4,5,9,0.96),0 2px 14px rgba(4,5,9,0.92)',
+            }}
           >
-            <div className="text-center max-w-4xl mx-auto">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.8, type: "spring" }}
-                className="mb-8 inline-flex"
-              >
-                <span className="px-5 py-2 rounded-full border border-white/15 bg-black/40 backdrop-blur-md text-xs font-black uppercase tracking-[0.25em] text-white/80 flex items-center gap-3 shadow-lg">
-                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_10px_#6366F1]" />
-                  Where Mathematics Meets Machine Learning
-                </span>
-              </motion.div>
-
-              <motion.h1
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.1, type: "spring", damping: 20 }}
-                className="text-[3rem] sm:text-[3.5rem] md:text-[5.5rem] lg:text-[7.5rem] xl:text-[8.5rem] font-black tracking-tighter leading-[0.85] text-white mb-6"
-                style={{ fontFamily: 'var(--font-display)', textShadow: '0 10px 50px rgba(0,0,0,0.8)' }}
-              >
-                Optimize.<br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-secondary to-pink-400">
-                  Learn.
-                </span>
-              </motion.h1>
-
-              <motion.p
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.2 }}
-                className="text-base sm:text-xl md:text-2xl text-white/90 max-w-2xl mx-auto mb-8 md:mb-10 leading-relaxed font-light"
-                style={{ textShadow: '0 4px 20px rgba(0,0,0,1)' }}
-              >
-                A no-code research platform where mathematical optimization powers machine learning — from data cleaning to model training to real-time inference.
-              </motion.p>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.3 }}
-                className="flex items-center justify-center gap-5 flex-wrap"
-              >
-                <button
-                  onClick={() => window.scrollTo({ top: window.innerHeight, behavior: 'smooth' })}
-                  className="group px-8 py-4 rounded-full bg-white text-black font-bold text-sm hover:scale-[1.05] transition-transform flex items-center gap-2 shadow-[0_0_40px_rgba(255,255,255,0.15)] hover:shadow-[0_0_60px_rgba(255,255,255,0.3)]"
-                >
-                  Explore Platform
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </button>
-                <Link
-                  to="/deep-learning"
-                  className="group px-8 py-4 rounded-full bg-gradient-to-r from-violet-600 to-pink-500 text-white font-bold text-sm hover:scale-[1.05] transition-transform flex items-center gap-2 shadow-[0_0_30px_rgba(139,92,246,0.3)] hover:shadow-[0_0_50px_rgba(139,92,246,0.5)]"
-                >
-                  <Sparkles className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-                  Try AI Models — No Setup
-                </Link>
-              </motion.div>
-            </div>
-          </motion.div>
-
-          {/* Bottom gradient fade into next section */}
-          <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[rgba(2,2,2,0.35)] via-[#050505] to-transparent pointer-events-none z-30" />
-        </section>
-
-        {/* ═══════════════════════════════════════════════════════
-            LOWER PAGE WRAPPER (Seamless GlassPane)
-            ══════════════════════════════════════════════════════ */}
-        <div className="relative z-10 backdrop-blur-[2px] pointer-events-none" style={{ background: 'rgba(2,2,2,0.25)' }}>
-          {/* Smooth fade from opaque hero section downward */}
-          <div className="absolute top-0 inset-x-0 h-48 bg-gradient-to-b from-[#050505] via-[#050505]/70 to-transparent pointer-events-none z-0" />
-
-          {/* ═══════════════════════════════════════════════════════
-              SECTION 2 — ABOUT PLATFORM + ROBOT
-              ══════════════════════════════════════════════════════ */}
-          <section id="about" className="relative z-10 px-6 lg:px-12 pt-20 md:pt-32 pb-24 md:pb-40 scroll-mt-20">
-            {/* Re-enable pointer events for inner content container so buttons/cards work */}
-            <div className="max-w-[1400px] mx-auto pointer-events-auto">
-
-            <motion.div
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-100px' }}
-              transition={{ duration: 0.7, type: 'spring' }}
-              className="text-center mb-12 md:mb-20"
+            <div className="lv2-label" style={{ marginTop: '10vh', marginBottom: 18 }}>Where Mathematics Meets Machine Learning</div>
+            <h1
+              className="lv2-serif"
+              style={{ fontWeight: 200, lineHeight: 0.96, letterSpacing: '-0.025em', fontSize: 'clamp(2.2rem,4.8vw,4.6rem)' }}
             >
-              <h2
-                className="text-5xl md:text-6xl lg:text-7xl font-black tracking-tight text-white mb-6"
-                style={{ fontFamily: 'var(--font-display)' }}
+              Optimize. <span className="lv2-serif lv2-gradient-text" style={{ fontWeight: 300 }}>Learn.</span>
+            </h1>
+            <p
+              style={{
+                margin: '16px auto 0', maxWidth: 640, padding: '0 20px',
+                fontSize: 'clamp(14px,1.2vw,17px)', lineHeight: 1.6, color: '#ccd3e2',
+              }}
+            >
+              A no-code research platform where mathematical optimization powers machine
+              learning — from data cleaning to model training to real-time inference.
+            </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginTop: 24 }}>
+              <a
+                href="#manifesto"
+                data-magnet
+                onClick={(e) => handleAnchor(e, 'manifesto')}
+                className="lv2-pill-solid"
+                style={{ padding: '12px 28px', fontSize: 14.5 }}
               >
-                About the Platform
-              </h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-primary to-transparent mx-auto rounded-full mb-6" />
-              <p className="mt-4 text-white/80 text-xl max-w-2xl mx-auto font-light">
-                Where mathematical optimization theory powers practical machine learning research.
-              </p>
-            </motion.div>
-
-            <div className="flex flex-col lg:flex-row gap-12 lg:gap-16">
-
-              {/* LEFT: About content with staggered animation */}
-              <motion.div 
-                variants={staggerContainer}
-                initial="hidden"
-                whileInView="show"
-                viewport={{ once: true, margin: "-50px" }}
-                className="w-full lg:w-[55%] flex flex-col gap-8"
-              >
-                {/* About block 1 */}
-                <motion.div variants={fadeUp} className="group p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent hover:border-white/15 transition-colors duration-500 hover:shadow-2xl hover:bg-white/[0.04]">
-                  <div className="flex items-center gap-4 mb-5">
-                    <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
-                      <Beaker className="w-7 h-7 text-primary" />
-                    </div>
-                    <h3 className="text-2xl font-black tracking-wide">What Is This?</h3>
-                  </div>
-                  <p className="text-white/80 text-lg leading-relaxed font-light">
-                    NEXUS is built on a simple principle: most machine learning models can be expressed as <strong className="text-white font-medium">optimization problems</strong>. By fusing mathematical optimization with ML, we created a no-code platform that covers the full research lifecycle — data preparation, model training, and AI inference.
-                  </p>
-                </motion.div>
-
-                {/* About block 2 */}
-                <motion.div variants={fadeUp} className="group p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent hover:border-white/15 transition-colors duration-500 hover:shadow-2xl hover:bg-white/[0.04]">
-                  <div className="flex items-center gap-4 mb-5">
-                    <div className="w-14 h-14 rounded-2xl bg-secondary/10 border border-secondary/20 flex items-center justify-center group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300">
-                      <GraduationCap className="w-7 h-7 text-secondary" />
-                    </div>
-                    <h3 className="text-2xl font-black tracking-wide">Who Is It For?</h3>
-                  </div>
-                  <p className="text-white/80 text-lg leading-relaxed font-light">
-                    Built for <strong className="text-white font-medium">researchers</strong>, <strong className="text-white font-medium">professors</strong>, and <strong className="text-white font-medium">students</strong> who want to experiment with ML models without writing code. Whether you are teaching optimization theory or running experiments for a thesis — upload, train, and predict in minutes.
-                  </p>
-                </motion.div>
-
-                {/* About block 3 */}
-                <motion.div variants={fadeUp} className="group p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent hover:border-white/15 transition-colors duration-500 hover:shadow-2xl hover:bg-white/[0.04]">
-                  <div className="flex items-center gap-4 mb-6">
-                    <div className="w-14 h-14 rounded-2xl bg-accent-warm/10 border border-accent-warm/20 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
-                      <ShieldCheck className="w-7 h-7 text-accent-warm" />
-                    </div>
-                    <h3 className="text-2xl font-black tracking-wide">Key Capabilities</h3>
-                  </div>
-                  <ul className="text-white/80 text-[1.05rem] leading-relaxed space-y-4 font-light">
-                    <li className="flex items-start gap-4">
-                      <span className="w-2 h-2 rounded-full bg-primary mt-2.5 shrink-0 shadow-[0_0_8px_#6366F1]" />
-                      <span><strong className="text-white font-medium">Automated Data Cleaning</strong> — Detect and fix missing values, outliers, and encoding issues with one-click pipelines.</span>
-                    </li>
-                    <li className="flex items-start gap-4">
-                      <span className="w-2 h-2 rounded-full bg-secondary mt-2.5 shrink-0 shadow-[0_0_8px_#06B6D4]" />
-                      <span><strong className="text-white font-medium">ELM Training Engine</strong> — Train neural networks using a proven optimization algorithm with theoretical convergence guarantees — no backpropagation needed.</span>
-                    </li>
-                    <li className="flex items-start gap-4">
-                      <span className="w-2 h-2 rounded-full bg-accent-warm mt-2.5 shrink-0 shadow-[0_0_8px_#F472B6]" />
-                      <span><strong className="text-white font-medium">Pre-trained Model Hub</strong> — Explore AI models for image classification, medical imaging (X-ray), and more — with new models added regularly.</span>
-                    </li>
-                    <li className="flex items-start gap-4">
-                      <span className="w-2 h-2 rounded-full bg-pink-400 mt-2.5 shrink-0 shadow-[0_0_8px_#E879F9]" />
-                      <span><strong className="text-white font-medium">Real-time Inference</strong> — Input feature vectors or upload images and receive instant predictions with confidence scores.</span>
-                    </li>
-                  </ul>
-                </motion.div>
-
-                {/* Tech stack pills */}
-                <motion.div variants={fadeUp} className="flex flex-wrap gap-3 mt-4">
-                  {['React 19', 'FastAPI', 'Tailwind CSS', 'Framer Motion', 'Plotly.js', 'scikit-learn', 'PyTorch', 'EfficientNetV2'].map((tech, i) => (
-                    <motion.span 
-                      whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,255,255,0.1)' }}
-                      key={tech} 
-                      className="px-4 py-2 rounded-full border border-white/10 bg-white/[0.03] text-sm font-medium text-white/85 cursor-default transition-colors"
-                    >
-                      {tech}
-                    </motion.span>
-                  ))}
-                </motion.div>
-              </motion.div>
-
-              {/* RIGHT: Robot container (sticky, sliding vertically + fade) */}
-              <RobotSplinePanel
-                style={{ opacity: robotOpacity, y: robotY, willChange: 'opacity, transform' }}
-              />
+                Explore Platform
+              </a>
+              <Link to="/deep-learning" data-magnet className="lv2-pill" style={{ padding: '12px 28px', fontSize: 14.5 }}>
+                Try AI Models — No Setup
+              </Link>
             </div>
           </div>
-        </section>
 
-          {/* ═══════════════════════════════════════════════════════
-              SECTION 3 — MODULES
-              ══════════════════════════════════════════════════════ */}
-          <section id="modules" className="relative z-10 px-6 lg:px-12 py-20 md:py-32 border-t border-white/5 scroll-mt-20">
-            <div className="max-w-[1400px] mx-auto pointer-events-auto">
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true, margin: '-100px' }}
-              transition={{ duration: 0.6, type: 'spring' }}
-              className="text-center mb-12 md:mb-24"
-            >
-              <h2
-                className="text-5xl md:text-6xl lg:text-7xl font-black tracking-tight text-white"
-                style={{ fontFamily: 'var(--font-display)' }}
-              >
-                System Architecture
-              </h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-secondary to-transparent mx-auto rounded-full mt-6 mb-6" />
-              <p className="text-white/80 text-xl max-w-xl mx-auto font-light">
-                Three integrated modules — each powered by optimization-driven algorithms.
-              </p>
-            </motion.div>
-
-            <motion.div 
-              variants={staggerContainer}
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true, margin: '-50px' }}
-              className="max-w-4xl mx-auto flex flex-col gap-6"
-            >
-              {modules.map((m, i) => (
-                <InteractiveModuleCard key={m.id} module={m} index={i} />
-              ))}
-            </motion.div>
-          </div>
-        </section>
-
-          {/* ═══════════════════════════════════════════════════════
-              SECTION 4 — HOW TO USE
-              ══════════════════════════════════════════════════════ */}
-          <section id="workflow" className="relative z-10 py-20 md:py-32 px-6 lg:px-12 border-t border-white/5 scroll-mt-20">
-            <div className="max-w-6xl mx-auto pointer-events-auto">
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, type: 'spring' }}
-              className="text-center mb-12 md:mb-20"
-            >
-              <h2 className="text-4xl md:text-6xl font-black text-white mb-6" style={{ fontFamily: 'var(--font-display)' }}>
-                Operational Flow
-              </h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-accent-warm to-transparent mx-auto rounded-full mb-6" />
-              <p className="text-white/80 text-base md:text-xl font-light">From raw data to predictions in three sequential steps.</p>
-            </motion.div>
-
-            <motion.div
-              variants={staggerContainer}
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true }}
-              className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-8"
-            >
-              {steps.map((step, i) => {
-                const StepIcon = step.icon
-                return (
-                  <motion.div
-                    key={i}
-                    variants={fadeUp}
-                    whileHover={{ y: -10 }}
-                    className="p-6 md:p-10 rounded-[1.5rem] md:rounded-[2rem] border border-white/5 bg-gradient-to-br from-white/[0.04] to-transparent hover:border-white/15 transition-all duration-300 group shadow-lg hover:shadow-2xl"
-                  >
-                    <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-5 md:mb-8 group-hover:scale-110 group-hover:bg-primary/20 transition-all duration-300">
-                      <StepIcon className="w-5 h-5 md:w-6 md:h-6 text-white/80 group-hover:text-primary transition-colors" />
-                    </div>
-                    <div className="text-4xl md:text-5xl font-black text-white/8 mb-3 md:mb-4 group-hover:text-white/15 transition-colors" style={{ fontFamily: 'var(--font-display)' }}>
-                      0{i+1}
-                    </div>
-                    <h3 className="text-lg md:text-xl font-bold mb-2 md:mb-3 text-white">{step.title}</h3>
-                    <p className="text-white/80 text-sm md:text-base leading-relaxed font-light">{step.desc}</p>
-                  </motion.div>
-                )
-              })}
-            </motion.div>
-          </div>
-        </section>
-
-          {/* ═══════════════════════════════════════════════════════
-              SECTION 5 — DEVELOPER
-              ══════════════════════════════════════════════════════ */}
-          <section className="relative z-10 py-20 md:py-32 px-6 lg:px-12 border-t border-white/5">
-            <div className="max-w-3xl mx-auto pointer-events-auto">
-              <motion.div
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.6, type: 'spring' }}
-                className="text-center mb-10 md:mb-16"
-              >
-                <h2 className="text-4xl md:text-6xl font-black text-white mb-6" style={{ fontFamily: 'var(--font-display)' }}>
-                  Meet the Developer
-                </h2>
-                <div className="w-24 h-1 bg-gradient-to-r from-primary to-transparent mx-auto rounded-full" />
-              </motion.div>
-
-              <DeveloperCard />
-            </div>
-          </section>
-
-          {/* ═══════════════════════════════════════════════════════
-              SECTION 6 — CTA
-              ══════════════════════════════════════════════════════ */}
-          <section className="relative z-10 py-20 md:py-32 px-6 border-t border-white/5 text-center overflow-hidden pointer-events-none" style={{ background: 'linear-gradient(to bottom, transparent, rgba(3,3,3,0.8))' }}>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] h-[80vw] max-w-3xl rounded-full bg-primary/20 blur-[150px] opacity-30 pointer-events-none" />
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.7, type: 'spring' }}
-            className="relative z-10 pointer-events-auto"
-          >
-            <h2 className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-black tracking-tight text-white mb-8 md:mb-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Ready to <em className="not-italic font-light text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">Compile?</em>
+          {/* Step 1 — raw data */}
+          <div data-hero-step style={{ ...heroCardStyle('right'), bottom: '18%' }}>
+            <div className="lv2-label" style={{ marginBottom: 22 }}>01 — Raw data</div>
+            <h2 className="lv2-serif" style={heroH2Style}>
+              Every dataset begins
+              <br />
+              as a <span style={{ fontStyle: 'italic' }}>cloud of points.</span>
             </h2>
-            <motion.button
-              onClick={() => setShowModuleModal(true)}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="px-8 md:px-10 py-4 md:py-5 rounded-full bg-white text-black font-black text-base md:text-lg shadow-[0_0_50px_-15px_rgba(255,255,255,0.8)] hover:shadow-[0_0_80px_-10px_rgba(255,255,255,1)] transition-shadow flex justify-center items-center gap-3 mx-auto group"
+          </div>
+
+          {/* Step 2 — optimization */}
+          <div data-hero-step style={{ ...heroCardStyle('left'), top: '22%' }}>
+            <div className="lv2-label" style={{ marginBottom: 22 }}>02 — Optimization</div>
+            <h2 className="lv2-serif" style={heroH2Style}>
+              Optimization folds
+              <br />
+              it into <span style={{ fontStyle: 'italic' }}>structure.</span>
+            </h2>
+          </div>
+
+          {/* Step 3 — inference */}
+          <div data-hero-step style={{ ...heroCardStyle('right'), bottom: '20%' }}>
+            <div className="lv2-label" style={{ marginBottom: 22 }}>03 — Inference</div>
+            <h2 className="lv2-serif" style={heroH2Style}>
+              The model wakes up —
+              <br />
+              <span style={{ fontStyle: 'italic' }}>ready to answer.</span>
+            </h2>
+          </div>
+
+          {/* Scroll hint */}
+          <div
+            ref={refs.scrollHint}
+            style={{
+              position: 'absolute', bottom: 34, left: '50%', transform: 'translateX(-50%)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+              fontSize: 10.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: '#5a6273',
+            }}
+          >
+            <span>Scroll</span>
+            <div style={{ width: 1, height: 34, background: 'linear-gradient(#5a6273,transparent)', position: 'relative', overflow: 'hidden' }}>
+              <span style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 8, background: '#6da8ff', animation: 'lv2-scrolldot 1.8s infinite' }} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ MANIFESTO / ABOUT ═══ */}
+      <section
+        id="manifesto"
+        style={{
+          position: 'relative', zIndex: 2,
+          padding: 'clamp(120px,22vh,260px) clamp(20px,7vw,120px)',
+          maxWidth: 1300, margin: '0 auto', textAlign: 'center',
+        }}
+      >
+        <div className="lv2-label" style={{ color: '#5a6273', marginBottom: 46 }}>The thesis</div>
+        <p
+          className="lv2-serif"
+          style={{
+            fontWeight: 200, lineHeight: 1.14, letterSpacing: '-0.02em',
+            fontSize: 'clamp(2rem,5.4vw,4.8rem)', maxWidth: '16ch', margin: '0 auto',
+            textShadow: '0 0 40px rgba(4,5,9,0.85),0 2px 14px rgba(4,5,9,0.8)',
+          }}
+        >
+          <span data-word style={{ display: 'inline-block' }}>Optimization</span>{' '}
+          <span data-word style={{ display: 'inline-block' }}>is</span>{' '}
+          <span data-word style={{ display: 'inline-block' }}>how</span>{' '}
+          <span data-word style={{ display: 'inline-block' }}>machines</span>{' '}
+          <span data-word className="lv2-gradient-text" style={{ display: 'inline-block' }}>learn</span>{' '}
+          <span data-word style={{ display: 'inline-block' }}>to</span>{' '}
+          <span data-word style={{ display: 'inline-block' }}>decide.</span>
+        </p>
+        <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap', marginTop: 80 }}>
+          {[
+            { big: '9', small: 'live AI models across vision & medical' },
+            { big: '3', small: 'integrated modules — clean · train · try' },
+            { big: '0', small: 'lines of code required' },
+          ].map((s) => (
+            <div
+              key={s.small}
+              data-reveal
+              style={{
+                padding: '22px 30px', borderRadius: 16,
+                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+                backdropFilter: 'blur(10px)', minWidth: 180,
+              }}
+            >
+              <div className="lv2-serif" style={{ fontWeight: 300, fontSize: '2.4rem', letterSpacing: '-0.02em' }}>{s.big}</div>
+              <div style={{ color: '#aab3c5', fontSize: 13.5, lineHeight: 1.5, marginTop: 6, maxWidth: '22ch' }}>{s.small}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ═══ TICKER ═══ */}
+      <div
+        style={{
+          position: 'relative', zIndex: 2, overflow: 'hidden',
+          padding: 'clamp(18px,3vh,30px) 0',
+          borderTop: '1px solid rgba(255,255,255,0.07)', borderBottom: '1px solid rgba(255,255,255,0.07)',
+          background: 'rgba(6,7,12,0.35)', backdropFilter: 'blur(6px)',
+        }}
+      >
+        <div style={{ display: 'flex', width: 'max-content', animation: 'lv2-marquee 34s linear infinite', willChange: 'transform' }}>
+          <TickerGroup />
+          <TickerGroup />
+        </div>
+      </div>
+
+      {/* ═══ MODULE 04 — DATA FORENSIC & CLEANING ═══ */}
+      <section id="clean" style={moduleSectionStyle}>
+        <div style={moduleGridStyle}>
+          <div data-reveal style={moduleTextPanelStyle}>
+            <div data-plx="0.1" className="lv2-serif" style={ghostNumStyle}>04</div>
+            <h3 className="lv2-serif" style={moduleH3Style}>Data Forensic &amp; Cleaning</h3>
+            <p style={moduleParaStyle}>
+              A dedicated laboratory for automated dataset cleansing, anomaly detection, and
+              missing-value treatment — the essential first step before any ML pipeline.
+            </p>
+            <ul style={featureListStyle}>
+              <Feature>Auto-detect data quality issues</Feature>
+              <Feature>Handle missing values &amp; outliers</Feature>
+              <Feature>Encode categories &amp; scale features</Feature>
+              <Feature>Visual EDA with interactive charts</Feature>
+            </ul>
+            <Link to="/forensic" data-magnet className="lv2-pill" style={{ marginTop: 34, padding: '12px 26px', fontSize: 14.5 }}>
+              Clean Your Data →
+            </Link>
+          </div>
+          <div
+            data-reveal
+            style={{
+              position: 'relative', aspectRatio: '4/3', borderRadius: 18, overflow: 'hidden',
+              background: 'rgba(9,11,18,0.55)', backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '13px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,255,255,0.15)' }} />
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,255,255,0.15)' }} />
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,255,255,0.15)' }} />
+              <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 11.5, color: '#8890a3', marginLeft: 8 }}>dataset_preview.csv</span>
+            </div>
+            <div style={{ flex: 1, padding: 'clamp(10px,1.6vw,20px)', overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'ui-monospace,monospace', fontSize: 'clamp(10px,1vw,12.5px)', color: '#b6bdcc' }}>
+                <thead>
+                  <tr style={{ color: '#6da8ff', textAlign: 'left' }}>
+                    {['id', 'age', 'income', 'city', 'target'].map((h) => (
+                      <th key={h} style={{ padding: '7px 8px', borderBottom: '1px solid rgba(255,255,255,0.12)', fontWeight: 500 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style={{ padding: '7px 8px' }}>0041</td><td style={{ padding: '7px 8px' }}>34</td>
+                    <td style={{ padding: '7px 8px' }}>52,000</td><td style={{ padding: '7px 8px' }}>Chiang Mai</td>
+                    <td style={{ padding: '7px 8px' }}>1</td>
+                  </tr>
+                  <tr style={{ background: 'rgba(109,168,255,0.06)' }}>
+                    <td style={{ padding: '7px 8px' }}>0042</td>
+                    <td style={{ padding: '7px 8px', color: '#ffd9a8' }}>
+                      <s style={{ opacity: 0.55 }}>NaN</s> → 31
+                    </td>
+                    <td style={{ padding: '7px 8px' }}>48,500</td><td style={{ padding: '7px 8px' }}>Bangkok</td>
+                    <td style={{ padding: '7px 8px' }}>0</td>
+                  </tr>
+                  <tr style={{ background: 'rgba(109,168,255,0.06)' }}>
+                    <td style={{ padding: '7px 8px' }}>0043</td><td style={{ padding: '7px 8px' }}>29</td>
+                    <td style={{ padding: '7px 8px', color: '#ffd9a8' }}>
+                      <s style={{ opacity: 0.55 }}>9,999,999</s> → capped
+                    </td>
+                    <td style={{ padding: '7px 8px' }}>Phuket</td><td style={{ padding: '7px 8px' }}>1</td>
+                  </tr>
+                  <tr style={{ opacity: 0.35, textDecoration: 'line-through' }}>
+                    <td style={{ padding: '7px 8px' }}>0044</td><td style={{ padding: '7px 8px' }}>34</td>
+                    <td style={{ padding: '7px 8px' }}>52,000</td><td style={{ padding: '7px 8px' }}>Chiang Mai</td>
+                    <td style={{ padding: '7px 8px' }}>1</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: '7px 8px' }}>0045</td><td style={{ padding: '7px 8px' }}>41</td>
+                    <td style={{ padding: '7px 8px' }}>61,200</td><td style={{ padding: '7px 8px' }}>Khon Kaen</td>
+                    <td style={{ padding: '7px 8px' }}>0</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div
+              style={{
+                padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.08)',
+                fontFamily: 'ui-monospace,monospace', fontSize: 11.5, color: '#8890a3',
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}
+            >
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#6da8ff' }} />
+              3 issues detected · auto-fixed — 1 imputed · 1 capped · 1 duplicate removed
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ MODULE 05 — ELM STUDIO ═══ */}
+      <section id="train" style={moduleSectionStyle}>
+        <div style={moduleGridStyle}>
+          <div
+            data-reveal
+            ref={refs.lossWrap}
+            style={{
+              order: 2, aspectRatio: '4/3', borderRadius: 18, overflow: 'hidden',
+              border: '1px solid rgba(255,255,255,0.1)', position: 'relative',
+              background: 'rgba(9,11,18,0.55)', backdropFilter: 'blur(10px)',
+            }}
+          >
+            <canvas ref={refs.lossCanvas} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
+            <span
+              style={{
+                position: 'absolute', bottom: 16, left: 16,
+                fontFamily: 'ui-monospace,monospace', fontSize: 11.5, color: '#8890a3',
+              }}
+            >
+              gradient_descent · scrub ↓
+            </span>
+          </div>
+          <div data-reveal style={moduleTextPanelStyle}>
+            <div data-plx="0.1" className="lv2-serif" style={ghostNumStyle}>05</div>
+            <h3 className="lv2-serif" style={moduleH3Style}>ELM Studio</h3>
+            <p style={moduleParaStyle}>
+              Extreme Learning Machine training powered by a proven optimization algorithm with
+              theoretical convergence guarantees. Train classification models in milliseconds —
+              no backpropagation needed.
+            </p>
+            <ul style={featureListStyle}>
+              <Feature>Optimization-based ELM with convergence guarantees</Feature>
+              <Feature>Configurable hidden nodes &amp; activation</Feature>
+              <Feature>Real-time prediction with probability</Feature>
+            </ul>
+            <Link to="/elm-studio" data-magnet className="lv2-pill" style={{ marginTop: 34, padding: '12px 26px', fontSize: 14.5 }}>
+              Train Your Model →
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ MODULE 06 — AI MODEL HUB ═══ */}
+      <section id="try" style={moduleSectionStyle}>
+        <div style={moduleGridStyle}>
+          <div data-reveal style={moduleTextPanelStyle}>
+            <div data-plx="0.1" className="lv2-serif" style={ghostNumStyle}>06</div>
+            <h3 className="lv2-serif" style={moduleH3Style}>AI Model Hub</h3>
+            <p style={moduleParaStyle}>
+              A curated collection of pre-trained models — image classification, medical imaging,
+              and object detection. Upload an image and get instant predictions with attention
+              heatmaps, bounding boxes, and pose skeletons.
+            </p>
+            <Link to="/deep-learning" data-magnet className="lv2-pill" style={{ marginTop: 34, padding: '12px 26px', fontSize: 14.5 }}>
+              Try Our Models →
+            </Link>
+          </div>
+          <div
+            data-reveal
+            style={{
+              borderRadius: 18, border: '1px solid rgba(255,255,255,0.1)',
+              background: 'rgba(11,13,20,0.62)', backdropFilter: 'blur(14px)',
+              overflow: 'hidden', boxShadow: '0 40px 80px -40px rgba(0,0,0,0.7)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,255,255,0.15)' }} />
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,255,255,0.15)' }} />
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,255,255,0.15)' }} />
+              <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 11.5, color: '#8890a3', marginLeft: 8 }}>model-hub · live</span>
+            </div>
+            <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div
+                data-reveal
+                style={{
+                  alignSelf: 'flex-end', maxWidth: '80%', background: '#2b3bd6', color: '#eef1f8',
+                  padding: '11px 15px', borderRadius: '14px 14px 3px 14px', fontSize: 14, lineHeight: 1.5,
+                }}
+              >
+                What&apos;s in this chest X-ray?
+              </div>
+              <div
+                data-reveal
+                style={{
+                  alignSelf: 'flex-start', maxWidth: '86%', background: 'rgba(255,255,255,0.06)',
+                  padding: '11px 15px', borderRadius: '14px 14px 14px 3px', fontSize: 14, lineHeight: 1.5,
+                }}
+              >
+                Pneumonia — confidence <strong>0.94</strong>. Attention concentrated in the right lower lobe.
+              </div>
+              <div data-reveal style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+                <input
+                  placeholder="Upload an image or ask…"
+                  readOnly
+                  onFocus={() => navigate('/deep-learning')}
+                  style={{
+                    flex: 1, border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.04)',
+                    color: '#eef1f8', borderRadius: 10, padding: '11px 14px',
+                    fontFamily: "'Archivo',sans-serif", fontSize: 14, outline: 'none',
+                  }}
+                />
+                <button
+                  onClick={() => navigate('/deep-learning')}
+                  style={{
+                    background: '#6da8ff', color: '#06070c', border: 'none', borderRadius: 10,
+                    padding: '0 18px', fontFamily: "'Archivo',sans-serif", fontSize: 14, fontWeight: 500, cursor: 'pointer',
+                  }}
+                >
+                  Run
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ HORIZONTAL GALLERY ═══ */}
+      <section id="gallery" ref={refs.galleryWrap} style={{ position: 'relative', zIndex: 2, height: '360vh' }}>
+        <div style={{ position: 'sticky', top: 0, height: '100vh', overflow: 'hidden', display: 'flex', alignItems: 'center' }}>
+          <div
+            ref={refs.galleryTrack}
+            style={{ display: 'flex', alignItems: 'center', gap: 'clamp(24px,3vw,52px)', padding: '0 8vw', willChange: 'transform' }}
+          >
+            <div style={{ flex: '0 0 auto', width: '34vw', minWidth: 280 }}>
+              <div className="lv2-label" style={{ marginBottom: 22 }}>07 — Showcase</div>
+              <h2
+                className="lv2-serif"
+                style={{ fontWeight: 200, fontSize: 'clamp(2.2rem,4.6vw,4.2rem)', lineHeight: 1, letterSpacing: '-0.025em' }}
+              >
+                Nine models,
+                <br />
+                in the <span style={{ fontStyle: 'italic' }}>wild.</span>
+              </h2>
+              <p style={{ color: '#aab3c5', marginTop: 20, fontSize: 15, lineHeight: 1.6, maxWidth: '32ch' }}>
+                Vision, medical imaging, and detection — one engine. Scroll →
+              </p>
+            </div>
+            {GALLERY_CARDS.map((card) => (
+              <Link key={card.tag} to="/deep-learning" style={{ flex: '0 0 auto', width: 'min(540px,72vw)', display: 'block' }}>
+                <div
+                  data-tilt
+                  style={{
+                    position: 'relative', aspectRatio: '3/4', borderRadius: 18, overflow: 'hidden',
+                    background: 'repeating-linear-gradient(135deg,rgba(255,255,255,0.03) 0 2px,rgba(255,255,255,0.07) 2px 14px)',
+                    border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'flex-end', padding: 26,
+                  }}
+                >
+                  <img
+                    src={card.img}
+                    alt={card.title}
+                    loading="lazy"
+                    onError={(e) => { e.currentTarget.style.display = 'none' }}
+                    style={{
+                      position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
+                      filter: 'saturate(0.78) contrast(1.06) brightness(0.85)',
+                    }}
+                  />
+                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg,rgba(6,7,12,0.14),rgba(6,7,12,0.5) 88%)' }} />
+                  <span
+                    style={{
+                      position: 'relative', zIndex: 1, fontFamily: 'ui-monospace,monospace', fontSize: 11.5,
+                      color: '#b6bdcc', background: 'rgba(6,7,12,0.66)', padding: '5px 9px', borderRadius: 6,
+                    }}
+                  >
+                    {card.tag}
+                  </span>
+                </div>
+                <div style={{ marginTop: 20 }}>
+                  <div className="lv2-serif" style={{ fontWeight: 300, fontSize: '1.7rem', letterSpacing: '-0.01em' }}>{card.title}</div>
+                  <div style={{ color: '#aab3c5', fontSize: 14.5, marginTop: 6 }}>{card.desc}</div>
+                </div>
+              </Link>
+            ))}
+            <div style={{ flex: '0 0 auto', width: '18vw', minWidth: 160 }} />
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ CTA + FOOTER ═══ */}
+      <section id="cta" style={{ position: 'relative', zIndex: 2, padding: 'clamp(120px,22vh,260px) clamp(20px,7vw,120px)', textAlign: 'center' }}>
+        <div data-reveal style={{ maxWidth: 1000, margin: '0 auto' }}>
+          <div className="lv2-label" style={{ marginBottom: 32 }}>08 — Converge · Research platform</div>
+          <h2
+            className="lv2-serif"
+            style={{ fontWeight: 200, fontSize: 'clamp(2.8rem,9vw,7.5rem)', lineHeight: 0.94, letterSpacing: '-0.03em' }}
+          >
+            Ready to <span className="lv2-gradient-text">compile?</span>
+          </h2>
+          <p
+            style={{
+              color: '#c6cddc', maxWidth: '44ch', margin: '30px auto 0',
+              fontSize: 'clamp(15px,1.3vw,18px)', lineHeight: 1.65,
+            }}
+          >
+            From raw data to trained models to live predictions — no code required.
+            Pick a module and start your research workflow.
+          </p>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 46, flexWrap: 'wrap' }}>
+            <a
+              href="#clean"
+              data-magnet
+              onClick={(e) => handleAnchor(e, 'clean')}
+              className="lv2-pill-solid"
+              style={{ padding: '15px 34px', fontSize: 15 }}
             >
               Initialize System
-              <ArrowRight className="w-5 h-5 group-hover:translate-x-2 transition-transform" />
-            </motion.button>
-          </motion.div>
-          </section>
-
-          {/* Footer */}
-          <footer className="relative z-10 py-8 px-6 text-center border-t border-white/5 pointer-events-auto" style={{ background: 'rgba(255,255,255,0.02)', backdropFilter: 'blur(8px)' }}>
-            <p className="text-white/60 text-xs tracking-wide">
-              &copy; 2026 ML Research Platform &middot; Built by Dr. Kobkoon Janngam &middot; Chiang Mai University
-            </p>
-          </footer>
-
+            </a>
+            <Link to="/deep-learning" data-magnet className="lv2-pill" style={{ padding: '15px 34px', fontSize: 15 }}>
+              Try AI Models
+            </Link>
+          </div>
         </div>
-      </main>
-
-      {/* ═══════════════════════════════════════════════════════
-          MODULE SELECTION MODAL
-          ══════════════════════════════════════════════════════ */}
-      <AnimatePresence>
-        {showModuleModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setShowModuleModal(false)}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6"
-            style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(12px)' }}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.85 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.85 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-              onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-[1.5rem] md:rounded-[2rem] border border-white/10 p-6 md:p-10"
-              style={{ background: 'rgba(10,10,10,0.85)', backdropFilter: 'blur(20px)' }}
-            >
-              <button
-                onClick={() => setShowModuleModal(false)}
-                aria-label="Close"
-                className="absolute top-4 right-4 md:top-5 md:right-5 w-11 h-11 md:w-9 md:h-9 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-              <h3 className="text-xl md:text-2xl font-black text-white mb-2 text-center pr-8" style={{ fontFamily: 'var(--font-display)' }}>
-                Select a Module
-              </h3>
-              <p className="text-white/70 text-xs md:text-sm text-center mb-6 md:mb-8">Choose where to begin your research workflow.</p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5">
-                {modules.map((m) => {
-                  const Icon = m.icon
-                  return (
-                    <motion.button
-                      key={m.id}
-                      whileHover={{ y: -4, scale: 1.02 }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => { setShowModuleModal(false); navigate(m.path) }}
-                      className="text-left p-5 md:p-6 rounded-2xl border border-white/10 hover:border-white/25 transition-all duration-200 group"
-                      style={{ background: `rgba(${m.colorRgb}, 0.06)` }}
-                    >
-                      <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 border border-white/10" style={{ background: `${m.color}18` }}>
-                        <Icon className="w-6 h-6" style={{ color: m.color }} />
-                      </div>
-                      <span className="text-[9px] font-black tracking-[0.2em] uppercase block mb-1" style={{ color: m.color }}>{m.subtitle}</span>
-                      <h4 className="text-base font-bold text-white mb-1">{m.title}</h4>
-                      <p className="text-white/70 text-xs italic mb-2">{m.tagline}</p>
-                      <p className="text-white/60 text-[11px] leading-relaxed mb-2">{m.features.join(' \u00b7 ')}</p>
-                      <p className="text-xs text-white/55 uppercase tracking-wider">Best for: <span className="text-white/70">{m.bestFor}</span></p>
-                    </motion.button>
-                  )
-                })}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        <footer
+          style={{
+            maxWidth: 1300, margin: 'clamp(120px,20vh,220px) auto 0', paddingTop: 36,
+            borderTop: '1px solid rgba(255,255,255,0.1)',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            flexWrap: 'wrap', gap: 20, color: '#5a6273', fontSize: 13,
+          }}
+        >
+          <div className="lv2-serif" style={{ fontSize: 20, color: '#eef1f8' }}>
+            Nexus<span style={{ color: '#6da8ff' }}>.</span>
+          </div>
+          <div style={{ display: 'flex', gap: 26 }}>
+            <a href="#clean" onClick={(e) => handleAnchor(e, 'clean')}>Modules</a>
+            <a href="#gallery" onClick={(e) => handleAnchor(e, 'gallery')}>Showcase</a>
+            <Link to="/about">About</Link>
+            <Link to="/docs">Docs</Link>
+          </div>
+          <div>© 2026 ML Research Platform · Dr. Kobkoon Janngam · Chiang Mai University</div>
+        </footer>
+      </section>
     </div>
   )
 }

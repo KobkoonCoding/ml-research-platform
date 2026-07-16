@@ -1,0 +1,950 @@
+/**
+ * OptimaScene — the WebGL world behind the landing page.
+ *
+ * Ported from the Claude Design prototype (three r128, CDN globals) to the
+ * project's bundled three (^0.183, ESM addons). The scene renders:
+ *   - a particle cloud that morphs: neural net → sphere ("cloud of points")
+ *     → crystal (octahedron), driven by `morph` in [0..2]
+ *   - a shader terrain shaped like a loss landscape, with particles
+ *     descending its gradient into a glowing basin
+ *   - starfield + nebula sprites + bloom/grade post-processing
+ *
+ * The class is deliberately framework-free: the React layer owns the rAF
+ * loop and scroll math, and calls `frame(state)` once per tick.
+ */
+import * as THREE from 'three'
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
+
+const DEFAULTS = Object.freeze({
+  pointDensity: 3500,
+  rotationSpeed: 1,
+  flowSpeed: 0.3,
+})
+
+// Camera keyframes over whole-page scroll fraction (t in [0..1]).
+const CAMERA_KEYS = [
+  // First two keys look slightly downward from higher up, so the net sits
+  // in the lower half of the screen and the intro copy owns the top half.
+  { t: 0.0, p: [0, 0.3, 5.2], l: [0, 0.32, 0] },
+  { t: 0.08, p: [0.35, 0.3, 4.75], l: [0.1, 0.24, 0] },
+  { t: 0.16, p: [0.95, 0.42, 4.0], l: [0.22, 0.06, 0] },
+  { t: 0.26, p: [-0.85, -0.34, 3.55], l: [-0.16, 0.04, 0] },
+  { t: 0.36, p: [0, 0.24, 3.95], l: [0, 0, 0] },
+  { t: 0.5, p: [0.7, 0.52, 4.65], l: [0.26, 0.1, 0] },
+  { t: 0.64, p: [-0.8, 0.2, 4.25], l: [-0.2, 0.02, 0] },
+  { t: 0.76, p: [1.2, 0.9, 5.6], l: [0.25, 0.05, 0] },
+  { t: 0.87, p: [0.2, 2.6, 8.8], l: [0, 0.1, 0] },
+  { t: 1.0, p: [0.9, 0.55, 2.6], l: [0.35, 0.05, 0] },
+]
+
+// Crystal scale — the prototype's full-size octahedron overwhelmed the
+// frame (and the DOM text) at close camera keys, so both the mesh and the
+// particle morph target shrink by the same factor.
+const KNOT_SCALE = 0.62
+
+const smooth = (x) => {
+  const c = Math.max(0, Math.min(1, x))
+  return c * c * (3 - 2 * c)
+}
+const clamp01 = (x) => Math.max(0, Math.min(1, x))
+
+export default class OptimaScene {
+  /**
+   * @param {HTMLCanvasElement} canvas fixed, full-viewport canvas
+   * @param {Partial<typeof DEFAULTS>} [opts]
+   */
+  constructor(canvas, opts = {}) {
+    this.opts = { ...DEFAULTS, ...opts }
+    this.densScale = 1
+    this.usePost = false
+    this.morph = 0
+
+    // The prototype was authored for r128 (no color management, linear
+    // output). Reproduce that pipeline, then restore the global flag on
+    // dispose so r3f components on other routes are unaffected.
+    this._prevColorManagement = THREE.ColorManagement.enabled
+    THREE.ColorManagement.enabled = false
+
+    const w = window.innerWidth
+    const h = window.innerHeight
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25))
+    this.renderer.setSize(w, h, false)
+    this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace
+
+    this.scene = new THREE.Scene()
+    this.scene.fog = new THREE.FogExp2(0x06070c, 0.052)
+    this.camera = new THREE.PerspectiveCamera(50, w / h, 0.1, 100)
+    this.camera.position.z = 4.5
+    this._camP = [0, 0.12, 4.7]
+    this._camL = [0, 0, 0]
+
+    this.world = new THREE.Group()
+    this.scene.add(this.world)
+    this.spinner = new THREE.Group()
+    this.world.add(this.spinner)
+
+    this.sprite = this._makeSprite()
+    this._buildStars()
+    this._buildTerrain()
+    this._buildPost(w, h)
+    this._buildNebula()
+    this.rebuildCloud()
+    this._buildKnotMesh()
+  }
+
+  /* ── textures ─────────────────────────────────────────────── */
+
+  _makeSprite() {
+    const c = document.createElement('canvas')
+    c.width = c.height = 64
+    const g = c.getContext('2d')
+    const rg = g.createRadialGradient(32, 32, 0, 32, 32, 32)
+    rg.addColorStop(0, 'rgba(255,255,255,1)')
+    rg.addColorStop(0.22, 'rgba(216,232,255,0.85)')
+    rg.addColorStop(1, 'rgba(120,160,255,0)')
+    g.fillStyle = rg
+    g.fillRect(0, 0, 64, 64)
+    return new THREE.CanvasTexture(c)
+  }
+
+  _makeGlow(rgba) {
+    const c = document.createElement('canvas')
+    c.width = c.height = 256
+    const g = c.getContext('2d')
+    const rg = g.createRadialGradient(128, 128, 0, 128, 128, 128)
+    rg.addColorStop(0, rgba)
+    rg.addColorStop(1, 'rgba(0,0,0,0)')
+    g.fillStyle = rg
+    g.fillRect(0, 0, 256, 256)
+    return new THREE.CanvasTexture(c)
+  }
+
+  _makeNoiseTex() {
+    const S = 256
+    const cv = document.createElement('canvas')
+    cv.width = cv.height = S
+    const ctx2 = cv.getContext('2d')
+    const img = ctx2.createImageData(S, S)
+    const hash = (x, y, o) => {
+      const s = Math.sin(x * 127.1 + y * 311.7 + o * 74.7) * 43758.5453
+      return s - Math.floor(s)
+    }
+    const vn = (px, py, cells, o) => {
+      const x = px * cells
+      const y = py * cells
+      const ix = Math.floor(x)
+      const iy = Math.floor(y)
+      let fx = x - ix
+      let fy = y - iy
+      fx = fx * fx * (3 - 2 * fx)
+      fy = fy * fy * (3 - 2 * fy)
+      const i0 = ix % cells
+      const i1 = (ix + 1) % cells
+      const j0 = iy % cells
+      const j1 = (iy + 1) % cells
+      const a = hash(i0, j0, o)
+      const b = hash(i1, j0, o)
+      const c = hash(i0, j1, o)
+      const d = hash(i1, j1, o)
+      return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy
+    }
+    const fbm = (px, py, oct, seed) => {
+      let amp = 0.5
+      let s = 0
+      let cells = 8
+      for (let o = 0; o < oct; o++) {
+        s += amp * vn(px, py, cells, o + seed)
+        cells *= 2
+        amp *= 0.5
+      }
+      return s
+    }
+    let k = 0
+    for (let j = 0; j < S; j++)
+      for (let i = 0; i < S; i++) {
+        const px = i / S
+        const py = j / S
+        img.data[k++] = fbm(px, py, 4, 0) * 255
+        img.data[k++] = fbm(px, py, 4, 10) * 255
+        img.data[k++] = fbm(px, py, 3, 20) * 255
+        img.data[k++] = 255
+      }
+    ctx2.putImageData(img, 0, 0)
+    const t = new THREE.CanvasTexture(cv)
+    t.wrapS = t.wrapT = THREE.RepeatWrapping
+    return t
+  }
+
+  /* ── static scenery ───────────────────────────────────────── */
+
+  _buildStars() {
+    const SN = 900
+    const sp = new Float32Array(SN * 3)
+    for (let i = 0; i < SN; i++) {
+      const r = 13 + Math.random() * 16
+      const th = Math.random() * Math.PI * 2
+      const ph = Math.acos(Math.random() * 2 - 1)
+      sp[i * 3] = r * Math.sin(ph) * Math.cos(th)
+      sp[i * 3 + 1] = r * Math.sin(ph) * Math.sin(th)
+      sp[i * 3 + 2] = r * Math.cos(ph)
+    }
+    const sg = new THREE.BufferGeometry()
+    sg.setAttribute('position', new THREE.BufferAttribute(sp, 3))
+    this.stars = new THREE.Points(
+      sg,
+      new THREE.PointsMaterial({
+        map: this.sprite, size: 0.075, color: 0x9fc0ff,
+        transparent: true, opacity: 0.36,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      })
+    )
+    this.scene.add(this.stars)
+  }
+
+  _buildNebula() {
+    const defs = [
+      [-6, 2.5, -9, 16, 'rgba(38,60,128,0.5)'],
+      [5.5, -3, -10, 18, 'rgba(52,38,110,0.5)'],
+      [1.5, 4.5, -11, 20, 'rgba(20,40,92,0.5)'],
+    ]
+    this.nebula = defs.map((d) => {
+      const s = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: this._makeGlow(d[4]), transparent: true, opacity: 0.5,
+          blending: THREE.AdditiveBlending, depthWrite: false,
+        })
+      )
+      s.position.set(d[0], d[1], d[2])
+      s.scale.setScalar(d[3])
+      this.scene.add(s)
+      return s
+    })
+  }
+
+  _buildPost(w, h) {
+    this.composer = new EffectComposer(this.renderer)
+    this.composer.addPass(new RenderPass(this.scene, this.camera))
+    // Bloom at a middle setting — enough glow to feel alive, not enough
+    // to wash out the DOM text overlay (prototype used 0.85; 0.3 was flat).
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.55, 0.75, 0.22)
+    this.composer.addPass(this.bloom)
+    this.gradePass = new ShaderPass({
+      uniforms: {
+        tDiffuse: { value: null }, uTime: { value: 0 },
+        uCA: { value: 1 }, uGrain: { value: 0.035 },
+      },
+      vertexShader:
+        'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: [
+        'uniform sampler2D tDiffuse; uniform float uTime; uniform float uCA; uniform float uGrain;',
+        'varying vec2 vUv;',
+        'vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14), 0.0, 1.0); }',
+        'void main(){',
+        '  vec2 c = vUv - 0.5; float r2 = dot(c, c);',
+        '  float ca = uCA * (0.0012 + r2 * 0.0045);',
+        '  vec3 col;',
+        '  col.r = texture2D(tDiffuse, vUv + c * ca).r;',
+        '  col.g = texture2D(tDiffuse, vUv).g;',
+        '  col.b = texture2D(tDiffuse, vUv - c * ca).b;',
+        '  col = aces(col * 1.06);',
+        '  col = mix(col, col * col * (3.0 - 2.0 * col), 0.16);',
+        '  col *= mix(0.8, 1.0, smoothstep(0.62, 0.18, r2));',
+        '  float g = fract(sin(dot(vUv * 1517.0 + fract(uTime * 7.0), vec2(12.9898, 78.233))) * 43758.5453);',
+        '  col += (g - 0.5) * uGrain;',
+        '  gl_FragColor = vec4(col, 1.0);',
+        '}',
+      ].join('\n'),
+    })
+    this.composer.addPass(this.gradePass)
+    this.composer.setPixelRatio(Math.min(devicePixelRatio, 1.25))
+    this.composer.setSize(w, h)
+    this.usePost = true
+  }
+
+  /* ── loss-landscape terrain ───────────────────────────────── */
+
+  terrHeight(x, z) {
+    let h =
+      Math.sin(x * 0.12 + 1.7) * Math.cos(z * 0.14 - 0.4) * 1.05 +
+      Math.sin(x * 0.24 - 0.8) * Math.sin(z * 0.2 + 2.1) * 0.5 +
+      Math.sin((x + z) * 0.08) * 0.8
+    h = h * 0.7 + Math.abs(Math.sin(x * 0.18) * Math.cos(z * 0.16)) * 1.0
+    h += Math.sin(x * 0.55 + z * 0.35) * 0.14 + Math.sin(x * 0.9 - z * 0.7 + 1.3) * 0.08
+    const r = Math.sqrt(x * x + z * z)
+    return h + r * 0.045 - 3.4 * Math.exp(-(r * r) / 84.5)
+  }
+
+  _buildTerrain() {
+    const noiseTex = this._makeNoiseTex()
+    const geo = new THREE.PlaneGeometry(90, 90, 140, 140)
+    geo.rotateX(-Math.PI / 2)
+    const pos = geo.attributes.position
+    for (let i = 0; i < pos.count; i++) pos.setY(i, this.terrHeight(pos.getX(i), pos.getZ(i)))
+    geo.computeVertexNormals()
+    this.terrMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uLow: { value: new THREE.Vector3(0.009, 0.032, 0.09) },
+        uHigh: { value: new THREE.Vector3(0.034, 0.13, 0.22) },
+        uContour: { value: new THREE.Vector3(0.17, 0.52, 0.6) },
+        uFog: { value: new THREE.Vector3(0.023, 0.028, 0.047) },
+        uCamPos: { value: new THREE.Vector3() },
+        uTime: { value: 0 },
+        uReveal: { value: 0 },
+        uSimple: { value: 0 },
+        uNoise: { value: noiseTex },
+      },
+      vertexShader: [
+        'varying vec3 vW; varying vec3 vN;',
+        'void main(){ vec4 wp = modelMatrix * vec4(position, 1.0); vW = wp.xyz; vN = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * viewMatrix * wp; }',
+      ].join('\n'),
+      fragmentShader: [
+        'uniform vec3 uLow; uniform vec3 uHigh; uniform vec3 uContour; uniform vec3 uFog; uniform vec3 uCamPos; uniform float uTime; uniform float uReveal; uniform float uSimple; uniform sampler2D uNoise;',
+        'varying vec3 vW; varying vec3 vN;',
+        'float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }',
+        'void main(){',
+        '  vec2 xz = vW.xz;',
+        '  vec3 V = normalize(uCamPos - vW);',
+        '  float hf = clamp((vW.y + 2.6) / 4.4, 0.0, 1.0);',
+        '  float distC = length(uCamPos - vW);',
+        '  vec3 L1 = normalize(vec3(0.35, 0.8, 0.25));',
+        '  vec3 col;',
+        '  if (uSimple > 0.5) {',
+        '    vec3 Ns = normalize(vN);',
+        '    col = mix(uLow, uHigh, hf) * (0.45 + 0.6 * clamp(dot(Ns, L1), 0.0, 1.0));',
+        '  } else {',
+        '    vec2 nuv = xz * 0.175;',
+        '    float dtl = texture2D(uNoise, nuv).r;',
+        '    float dtl2 = texture2D(uNoise, xz * 0.625 + 0.31).g;',
+        '    float bx = texture2D(uNoise, nuv + vec2(0.05, 0.0)).r - dtl;',
+        '    float bz = texture2D(uNoise, nuv + vec2(0.0, 0.05)).r - dtl;',
+        '    vec3 N = normalize(normalize(vN) + vec3(-bx, 0.0, -bz) * 2.2);',
+        '    float slope = 1.0 - clamp(N.y, 0.0, 1.0);',
+        '    float snow = smoothstep(0.35, 0.75, hf + (dtl - 0.5) * 0.5) * smoothstep(0.55, 0.15, slope);',
+        '    vec3 rock = mix(uLow, uHigh, hf) * (0.7 + 0.55 * dtl2);',
+        '    vec3 ice = mix(vec3(0.5, 0.66, 0.82), vec3(0.72, 0.86, 0.98), dtl2) * 0.32;',
+        '    vec3 alb = mix(rock, ice, snow);',
+        '    vec3 L2 = normalize(vec3(-0.5, 0.4, -0.6));',
+        '    float dif = clamp(dot(N, L1), 0.0, 1.0);',
+        '    col = alb * (0.15 + 0.62 * dif) + alb * vec3(0.35, 0.5, 0.75) * 0.18 * clamp(dot(N, L2), 0.0, 1.0);',
+        '    vec3 H = normalize(L1 + V);',
+        '    col += vec3(0.75, 0.9, 1.0) * pow(clamp(dot(N, H), 0.0, 1.0), 42.0) * (0.03 + 0.16 * snow);',
+        '    float gl = hash(floor(xz * 34.0));',
+        '    float tw2 = 0.5 + 0.5 * sin(uTime * 2.0 + gl * 40.0);',
+        '    col += vec3(0.9, 0.97, 1.0) * smoothstep(0.997, 1.0, gl * tw2) * snow * 0.5 * dif;',
+        '    col += vec3(0.3, 0.55, 0.85) * pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 4.0) * 0.07;',
+        '    float vein = smoothstep(0.6, 0.7, texture2D(uNoise, xz * 0.325 + 0.43).b) * smoothstep(0.45, 0.05, hf);',
+        '    col += uContour * vein * (0.1 + 0.05 * sin(uTime * 0.8 + dtl * 9.0));',
+        '  }',
+        '  float rr = length(xz);',
+        '  float fv = fract(vW.y * 2.3 - uTime * 0.04);',
+        '  float dd = min(fv, 1.0 - fv);',
+        '  float w = fwidth(vW.y * 2.3) * 1.3 + 0.02;',
+        '  float line = (1.0 - smoothstep(0.0, w, dd)) * exp(-rr * 0.22);',
+        '  col += uContour * line * 0.13;',
+        '  float fog = 1.0 - exp(-distC * distC * 0.0016);',
+        '  col = mix(col, uFog, fog);',
+        '  col = mix(uFog, col, uReveal);',
+        '  gl_FragColor = vec4(col, 1.0);',
+        '}',
+      ].join('\n'),
+    })
+    this.terrain = new THREE.Mesh(geo, this.terrMat)
+    this.terrain.position.y = 0.4
+    this.scene.add(this.terrain)
+
+    const bg = new THREE.Mesh(
+      new THREE.CircleGeometry(4.5, 40),
+      new THREE.MeshBasicMaterial({
+        map: this._makeGlow('rgba(70,190,255,0.5)'), color: 0x46e2ff,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+        transparent: true, opacity: 0,
+      })
+    )
+    bg.rotation.x = -Math.PI / 2
+    bg.position.y = this.terrHeight(0, 0) + 0.9
+    this.basinGlow = bg
+    this.scene.add(bg)
+
+    // Gradient-descent particles rolling down the loss surface.
+    const PN = (this.descN = 240)
+    this.descPos = new Float32Array(PN * 3)
+    this.descPts = []
+    for (let i = 0; i < PN; i++) {
+      const a = Math.random() * Math.PI * 2
+      const r = 7 + Math.random() * 12
+      this.descPts.push({ x: Math.cos(a) * r, z: Math.sin(a) * r })
+    }
+    this.descGeo = new THREE.BufferGeometry()
+    this.descGeo.setAttribute('position', new THREE.BufferAttribute(this.descPos, 3))
+    this.descPoints = new THREE.Points(
+      this.descGeo,
+      new THREE.PointsMaterial({
+        map: this.sprite, color: 0x6ff0ff, size: 0.12, sizeAttenuation: true,
+        transparent: true, opacity: 0,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      })
+    )
+    this.descPoints.frustumCulled = false
+    this.scene.add(this.descPoints)
+  }
+
+  /* ── morphing point cloud (net → sphere → crystal) ────────── */
+
+  _genSphere(N) {
+    const a = new Float32Array(N * 3)
+    const gr = Math.PI * (3 - Math.sqrt(5))
+    for (let i = 0; i < N; i++) {
+      const y = 1 - (i / (N - 1)) * 2
+      const r = Math.sqrt(1 - y * y)
+      const t = gr * i
+      a[i * 3] = Math.cos(t) * r * 1.4
+      a[i * 3 + 1] = y * 1.4
+      a[i * 3 + 2] = Math.sin(t) * r * 1.4
+    }
+    return a
+  }
+
+  _genKnot(N) {
+    const g = new THREE.OctahedronGeometry(1.0, 1)
+    g.scale(1, 1.5, 1)
+    const p = g.attributes.position.array
+    const F = p.length / 9
+    const a = new Float32Array(N * 3)
+    for (let i = 0; i < N; i++) {
+      const f = ((Math.random() * F) | 0) * 9
+      let u = Math.random()
+      let v = Math.random()
+      if (u + v > 1) {
+        u = 1 - u
+        v = 1 - v
+      }
+      const w2 = 1 - u - v
+      const j = i * 3
+      const k = 1.03 * KNOT_SCALE
+      a[j] = (p[f] * w2 + p[f + 3] * u + p[f + 6] * v) * k
+      a[j + 1] = (p[f + 1] * w2 + p[f + 4] * u + p[f + 7] * v) * k
+      a[j + 2] = (p[f + 2] * w2 + p[f + 5] * u + p[f + 8] * v) * k
+    }
+    g.dispose()
+    return a
+  }
+
+  _buildNet() {
+    const heights = [2.3, 1.5, 1.05, 0.95, 0.9, 0.9, 0.9, 0.95, 1.0, 1.05]
+    const L = heights.length
+    const x0 = -2.65
+    const x1 = 2.65
+    const layers = heights.map((h) => Math.max(9, Math.round(h * 11)))
+    const nodes = []
+    const layerX = []
+    const layerOff = []
+    for (let li = 0; li < L; li++) {
+      const cnt = layers[li]
+      const x = x0 + ((x1 - x0) * li) / (L - 1)
+      const h = heights[li]
+      layerX.push(x)
+      layerOff.push(nodes.length)
+      for (let k = 0; k < cnt; k++) {
+        const y = (cnt === 1 ? 0 : k / (cnt - 1) - 0.5) * h
+        nodes.push([
+          x + (Math.random() - 0.5) * 0.03,
+          y + (Math.random() - 0.5) * 0.02,
+          (Math.random() - 0.5) * 0.1,
+        ])
+      }
+    }
+    const edges = []
+    for (let li = 0; li < L - 1; li++) {
+      const aC = layers[li]
+      const bC = layers[li + 1]
+      const aO = layerOff[li]
+      const bO = layerOff[li + 1]
+      const fan = li === 0 ? 3 : 2
+      for (let i = 0; i < aC; i++)
+        for (let d = 0; d < fan; d++) {
+          const j =
+            Math.random() < 0.55
+              ? Math.max(0, Math.min(bC - 1, Math.round((i * (bC - 1)) / (aC - 1)) + ((Math.random() * 5) | 0) - 2))
+              : (Math.random() * bC) | 0
+          const A = nodes[aO + i]
+          const B = nodes[bO + j]
+          const my = (A[1] + B[1]) / 2
+          const bulge = 1.7 + Math.random() * 1.1
+          edges.push([
+            A[0], A[1], A[2], B[0], B[1], B[2],
+            (A[0] + B[0]) / 2,
+            my * bulge + (Math.random() - 0.5) * 0.14,
+            (A[2] + B[2]) / 2 + (Math.random() - 0.5) * 0.5,
+          ])
+        }
+    }
+    this.netEdges = edges
+    this.netGroup = new THREE.Group()
+    const np = new Float32Array(nodes.length * 3)
+    nodes.forEach((n, i) => {
+      np[i * 3] = n[0]
+      np[i * 3 + 1] = n[1]
+      np[i * 3 + 2] = n[2]
+    })
+    const ng = new THREE.BufferGeometry()
+    ng.setAttribute('position', new THREE.BufferAttribute(np, 3))
+    this.netNodesPts = new THREE.Points(
+      ng,
+      new THREE.PointsMaterial({
+        map: this.sprite, size: 0.055, color: 0xeaf2ff,
+        transparent: true, opacity: 0.95,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      })
+    )
+    const S = 8
+    const lp = new Float32Array(edges.length * S * 6)
+    const lc = new Float32Array(edges.length * S * 6)
+    const pal = [
+      new THREE.Color('#6fb6ff'), new THREE.Color('#7ea6ff'),
+      new THREE.Color('#b79dff'), new THREE.Color('#ffd9a8'),
+      new THREE.Color('#8fe3ff'),
+    ]
+    const bez = (e, t, out) => {
+      const u = 1 - t
+      out[0] = u * u * e[0] + 2 * u * t * e[6] + t * t * e[3]
+      out[1] = u * u * e[1] + 2 * u * t * e[7] + t * t * e[4]
+      out[2] = u * u * e[2] + 2 * u * t * e[8] + t * t * e[5]
+    }
+    let w = 0
+    const pA = [0, 0, 0]
+    const pB = [0, 0, 0]
+    edges.forEach((e) => {
+      const col = pal[(Math.random() * pal.length) | 0]
+      for (let s = 0; s < S; s++) {
+        bez(e, s / S, pA)
+        bez(e, (s + 1) / S, pB)
+        lp[w] = pA[0]; lp[w + 1] = pA[1]; lp[w + 2] = pA[2]
+        lc[w] = col.r; lc[w + 1] = col.g; lc[w + 2] = col.b
+        w += 3
+        lp[w] = pB[0]; lp[w + 1] = pB[1]; lp[w + 2] = pB[2]
+        lc[w] = col.r; lc[w + 1] = col.g; lc[w + 2] = col.b
+        w += 3
+      }
+    })
+    const lg = new THREE.BufferGeometry()
+    lg.setAttribute('position', new THREE.BufferAttribute(lp, 3))
+    lg.setAttribute('color', new THREE.BufferAttribute(lc, 3))
+    this.netLines = new THREE.LineSegments(
+      lg,
+      new THREE.LineBasicMaterial({
+        vertexColors: true, transparent: true, opacity: 0.12,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      })
+    )
+    const bigN = 2
+    const gpA = new Float32Array(bigN * 3)
+    const gpB = new Float32Array((L - bigN) * 3)
+    for (let li = 0; li < L; li++) {
+      const t = li < bigN ? gpA : gpB
+      const k = li < bigN ? li : li - bigN
+      t[k * 3] = layerX[li]
+      t[k * 3 + 1] = 0
+      t[k * 3 + 2] = 0
+    }
+    const ggA = new THREE.BufferGeometry()
+    ggA.setAttribute('position', new THREE.BufferAttribute(gpA, 3))
+    this.netCoresA = new THREE.Points(
+      ggA,
+      new THREE.PointsMaterial({
+        map: this.sprite, size: 0.5, color: 0xfff0dc,
+        transparent: true, opacity: 0.5,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      })
+    )
+    const ggB = new THREE.BufferGeometry()
+    ggB.setAttribute('position', new THREE.BufferAttribute(gpB, 3))
+    this.netCoresB = new THREE.Points(
+      ggB,
+      new THREE.PointsMaterial({
+        map: this.sprite, size: 0.3, color: 0xffe9c9,
+        transparent: true, opacity: 0.32,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      })
+    )
+    this.netGroup.add(this.netNodesPts, this.netLines, this.netCoresA, this.netCoresB)
+    this.spinner.add(this.netGroup)
+  }
+
+  rebuildCloud() {
+    if (this.points) {
+      this.spinner.remove(this.points)
+      this.points.geometry.dispose()
+      this.points.material.dispose()
+    }
+    if (this.netGroup) {
+      this.spinner.remove(this.netGroup)
+      this.netGroup.children.forEach((o) => {
+        o.geometry.dispose()
+        o.material.dispose()
+      })
+    }
+    const N = (this.N = Math.round(this.opts.pointDensity * this.densScale))
+    this._buildNet()
+    const sph = this._genSphere(N)
+    const knot = this._genKnot(N)
+    const netA = new Float32Array(N * 3)
+    const netB = new Float32Array(N * 3)
+    const netC = new Float32Array(N * 3)
+    const flow = new Float32Array(N * 2)
+    const misc = new Float32Array(N * 2)
+    const colA = new Float32Array(N * 3)
+    const cols = [
+      [0.49, 0.65, 1], [0.49, 0.65, 1], [0.44, 0.71, 1],
+      [0.72, 0.62, 1], [1, 0.85, 0.66],
+    ]
+    const E = this.netEdges
+    for (let i = 0; i < N; i++) {
+      const e = E[(Math.random() * E.length) | 0]
+      const j = i * 3
+      netA[j] = e[0]; netA[j + 1] = e[1]; netA[j + 2] = e[2]
+      netB[j] = e[3]; netB[j + 1] = e[4]; netB[j + 2] = e[5]
+      netC[j] = e[6]; netC[j + 1] = e[7]; netC[j + 2] = e[8]
+      const sig = i % 6 === 0
+      flow[i * 2] = Math.random()
+      flow[i * 2 + 1] = sig ? 0.5 + Math.random() * 0.6 : 0.08 + Math.random() * 0.26
+      misc[i * 2] = Math.random()
+      misc[i * 2 + 1] = sig ? 0.085 + Math.random() * 0.03 : 0.045 + Math.random() * 0.03
+      const c = sig ? [1, 1, 1] : cols[(Math.random() * cols.length) | 0]
+      colA[j] = c[0]; colA[j + 1] = c[1]; colA[j + 2] = c[2]
+    }
+    const geom = new THREE.BufferGeometry()
+    geom.setAttribute('position', new THREE.BufferAttribute(sph, 3))
+    geom.setAttribute('aKnot', new THREE.BufferAttribute(knot, 3))
+    geom.setAttribute('aNetA', new THREE.BufferAttribute(netA, 3))
+    geom.setAttribute('aNetB', new THREE.BufferAttribute(netB, 3))
+    geom.setAttribute('aNetC', new THREE.BufferAttribute(netC, 3))
+    geom.setAttribute('aFlowD', new THREE.BufferAttribute(flow, 2))
+    geom.setAttribute('aMisc', new THREE.BufferAttribute(misc, 2))
+    geom.setAttribute('aCol', new THREE.BufferAttribute(colA, 3))
+    this.pMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 }, uMorph: { value: 0 }, uFlow: { value: 1 },
+        uIntro: { value: 0 }, uPR: { value: Math.min(devicePixelRatio, 1.25) },
+      },
+      vertexShader: [
+        'uniform float uTime; uniform float uMorph; uniform float uFlow; uniform float uIntro; uniform float uPR;',
+        'attribute vec3 aKnot; attribute vec3 aNetA; attribute vec3 aNetB; attribute vec3 aNetC; attribute vec3 aCol;',
+        'attribute vec2 aFlowD; attribute vec2 aMisc;',
+        'varying vec3 vCol; varying float vA;',
+        'float ss(float x){ x = clamp(x, 0.0, 1.0); return x*x*(3.0-2.0*x); }',
+        'void main(){',
+        '  float fr = fract(aFlowD.x + uTime * aFlowD.y * uFlow);',
+        '  float u = 1.0 - fr;',
+        '  vec3 net = u*u*aNetA + 2.0*u*fr*aNetC + fr*fr*aNetB;',
+        '  vec3 p;',
+        '  if (uMorph <= 1.0) p = mix(net, position, ss(uMorph));',
+        '  else p = mix(position, aKnot, ss(uMorph - 1.0));',
+        '  float sphW = ss(uMorph) * (1.0 - ss(uMorph - 1.0));',
+        '  float solidW = ss(uMorph - 1.0);',
+        '  float seed = aMisc.x;',
+        '  float sw = sphW * 0.16 * sin(uTime*0.28 + p.y*2.2 + seed*0.9);',
+        '  float cs = cos(sw); float sn = sin(sw);',
+        '  p.xz = mat2(cs, -sn, sn, cs) * p.xz;',
+        '  p += normalize(p + vec3(1e-4)) * (0.05 * sphW * sin(uTime*0.6 + seed*38.0));',
+        '  p += 0.025 * vec3(sin(uTime*0.7+seed*40.0), cos(uTime*0.55+seed*70.0), sin(uTime*0.85+seed*55.0));',
+        '  float ig = ss(uIntro);',
+        '  p *= mix(1.7 + seed * 0.6, 1.0, ig);',
+        '  vec4 mv = modelViewMatrix * vec4(p, 1.0);',
+        '  gl_Position = projectionMatrix * mv;',
+        '  float tw = 0.72 + 0.28 * sin(uTime * (1.2 + seed*2.8) + seed*80.0);',
+        '  vA = tw * ig * mix(1.0, step(0.08, aMisc.y) * 0.35, solidW);',
+        '  vCol = aCol;',
+        '  gl_PointSize = aMisc.y * uPR * tw * (1.0 + 0.35 * sphW) * (260.0 / -mv.z);',
+        '}',
+      ].join('\n'),
+      fragmentShader: [
+        'varying vec3 vCol; varying float vA;',
+        'void main(){',
+        '  vec2 q = gl_PointCoord - 0.5;',
+        '  float d = length(q);',
+        '  float a = smoothstep(0.5, 0.06, d);',
+        '  float core = 1.0 + 1.6 * smoothstep(0.22, 0.0, d);',
+        '  gl_FragColor = vec4(vCol * core, a * vA);',
+        '}',
+      ].join('\n'),
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    })
+    this.points = new THREE.Points(geom, this.pMat)
+    this.points.frustumCulled = false
+    this.spinner.add(this.points)
+  }
+
+  _buildKnotMesh() {
+    const g = new THREE.OctahedronGeometry(1.0, 1)
+    g.scale(1, 1.5, 1)
+    this.knotMat = new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 }, uOp: { value: 0 } },
+      vertexShader: [
+        'varying vec3 vW; varying vec3 vP;',
+        'void main(){',
+        '  vec4 wp = modelMatrix * vec4(position, 1.0);',
+        '  vW = wp.xyz; vP = position;',
+        '  gl_Position = projectionMatrix * viewMatrix * wp;',
+        '}',
+      ].join('\n'),
+      fragmentShader: [
+        'uniform float uTime; uniform float uOp;',
+        'varying vec3 vW; varying vec3 vP;',
+        'float hash3(vec3 p){ return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453123); }',
+        'void main(){',
+        '  vec3 N = normalize(cross(dFdx(vW), dFdy(vW)));',
+        '  vec3 V = normalize(cameraPosition - vW);',
+        '  if (dot(N, V) < 0.0) N = -N;',
+        '  float nd = clamp(dot(N, V), 0.0, 1.0);',
+        '  vec3 fr = vec3(pow(1.0 - nd, 1.9), pow(1.0 - nd, 2.15), pow(1.0 - nd, 2.4));',
+        '  vec3 deep = vec3(0.012, 0.07, 0.17);',
+        '  vec3 R = reflect(-V, N);',
+        '  vec3 env = mix(vec3(0.01, 0.03, 0.07), vec3(0.45, 0.75, 0.95), smoothstep(-0.4, 0.7, R.y));',
+        '  env += vec3(0.28, 0.9, 1.0) * smoothstep(0.2, -0.5, R.y) * 0.35;',
+        '  vec3 col = deep + env * fr * 1.05;',
+        '  float streak = hash3(floor(vP * 5.0));',
+        '  col += vec3(0.5, 0.8, 1.0) * streak * 0.10 * (1.0 - nd);',
+        '  vec3 L = normalize(vec3(0.4, 0.9, 0.3));',
+        '  float spec = pow(clamp(dot(R, L), 0.0, 1.0), 60.0);',
+        '  float fid = hash3(floor(N * 7.0) + 2.0);',
+        '  col += vec3(0.95, 1.0, 1.0) * spec * (0.3 + 0.9 * step(0.6, fid));',
+        '  col += vec3(0.2, 0.75, 1.0) * pow(1.0 - nd, 5.0) * (0.3 + 0.15 * sin(uTime * 1.4));',
+        '  gl_FragColor = vec4(col, uOp * (0.92 + 0.08 * fr.g));',
+        '}',
+      ].join('\n'),
+      transparent: true,
+      depthWrite: true,
+    })
+    this.knotMesh = new THREE.Mesh(g, this.knotMat)
+    this.knotMesh.visible = false
+    this.knotWire = new THREE.LineSegments(
+      new THREE.EdgesGeometry(g, 12),
+      new THREE.LineBasicMaterial({
+        color: 0x9ff2ff, transparent: true, opacity: 0,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      })
+    )
+    this.knotMesh.add(this.knotWire)
+    this.crystalGlow = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: this._makeGlow('rgba(70,190,255,0.6)'), transparent: true, opacity: 0,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      })
+    )
+    this.crystalGlow.scale.setScalar(3.4)
+    this.spinner.add(this.crystalGlow, this.knotMesh)
+  }
+
+  /* ── runtime ──────────────────────────────────────────────── */
+
+  setSize(w, h) {
+    if (!this.renderer) return
+    this.renderer.setSize(w, h, false)
+    this.camera.aspect = w / h
+    this.camera.updateProjectionMatrix()
+    if (this.composer) this.composer.setSize(w, h)
+  }
+
+  /**
+   * Quality degradation, called by the harness when FPS drops.
+   * Level 1: pixelRatio 1, post off. Level 2: fewer particles, simple terrain.
+   */
+  degrade(level) {
+    if (level === 1) {
+      this.renderer.setPixelRatio(1)
+      this.usePost = false
+      if (this.pMat) this.pMat.uniforms.uPR.value = 1
+      this.setSize(window.innerWidth, window.innerHeight)
+    }
+    if (level === 2) {
+      this.densScale = 0.45
+      this.rebuildCloud()
+      if (this.descPoints) this.descPoints.visible = false
+      if (this.terrMat) this.terrMat.uniforms.uSimple.value = 1
+    }
+  }
+
+  /**
+   * Render one frame.
+   * @param {{time:number, targetMorph:number, intro:number, scrollFrac:number,
+   *          mx:number, my:number, velS:number, snap:boolean, flowSpeed?:number}} s
+   * @returns {{stageChanged:boolean, morph:number}}
+   */
+  frame(s) {
+    if (!this.points || !this.renderer) return { stageChanged: false, morph: this.morph }
+    const time = s.time
+    const fs = s.flowSpeed ?? this.opts.flowSpeed
+    this.morph = s.snap ? s.targetMorph : this.morph + (s.targetMorph - this.morph) * 0.07
+    const p = this.morph
+    const U = this.pMat.uniforms
+    U.uTime.value = time
+    U.uMorph.value = p
+    U.uFlow.value = fs
+    U.uIntro.value = s.intro
+
+    const stg = Math.round(s.targetMorph)
+    let stageChanged = false
+    if (this._stg === undefined) this._stg = stg
+    if (stg !== this._stg) {
+      this._stg = stg
+      this.pulse = 1
+      stageChanged = true
+    }
+    this.pulse = (this.pulse || 0) * (s.snap ? 0 : 0.955)
+    if (this.bloom) this.bloom.strength = 0.55 + this.pulse * 0.7 + (this._fin || 0) * 0.35
+    if (this.gradePass) {
+      this.gradePass.uniforms.uTime.value = time
+      this.gradePass.uniforms.uCA.value = 1 + this.pulse * 7 + Math.min(3, Math.abs(s.velS) * 0.5)
+    }
+    if (this.nebula)
+      this.nebula.forEach((sp, i) => {
+        sp.material.opacity = 0.3 + 0.08 * Math.sin(time * 0.07 + i * 1.7)
+        sp.position.y += Math.sin(time * 0.05 + i * 2) * 0.0008
+      })
+
+    const netW = 1 - clamp01(p)
+    if (this.netGroup) {
+      this.netGroup.visible = netW > 0.02
+      this.netLines.material.opacity = netW * (0.085 + 0.025 * Math.sin(time * 1.4))
+      this.netNodesPts.material.opacity = netW * 0.75
+      this.netNodesPts.material.size = 0.055 + 0.008 * Math.sin(time * 2.3)
+      this.netCoresA.material.opacity = netW * (0.38 + 0.1 * Math.sin(time * 1.9))
+      this.netCoresA.material.size = 0.44 + 0.04 * Math.sin(time * 1.9)
+      this.netCoresB.material.opacity = netW * (0.24 + 0.05 * Math.sin(time * 2.6 + 1.3))
+    }
+    if (this.knotMesh) {
+      const kr = smooth(clamp01(p - 1))
+      this.knotMesh.visible = kr > 0.02
+      this.knotMat.uniforms.uOp.value = kr
+      this.knotMat.uniforms.uTime.value = time
+      this.knotMesh.scale.setScalar((0.94 + 0.06 * kr) * KNOT_SCALE)
+      this.knotMesh.position.y = Math.sin(time * 0.7) * 0.06 * kr
+      if (this.knotWire) this.knotWire.material.opacity = kr * 0.16
+      const fin = (this._fin = smooth(clamp01((s.scrollFrac - 0.88) / 0.1)) * kr)
+      if (this.crystalGlow) {
+        this.crystalGlow.material.opacity = kr * (0.3 + (this.pulse || 0) * 0.25) + fin * 0.25
+        this.crystalGlow.scale.setScalar((3.4 + 0.3 * Math.sin(time * 1.1)) * KNOT_SCALE)
+        this.crystalGlow.position.y = this.knotMesh.position.y
+      }
+    }
+    const spd = this.opts.rotationSpeed
+    if (netW > 0.5) {
+      const tgt = Math.round(this.spinner.rotation.y / (Math.PI * 2)) * Math.PI * 2
+      this.spinner.rotation.y += (tgt - this.spinner.rotation.y) * 0.06
+    } else {
+      this.spinner.rotation.y += 0.0016 * spd * (1 - netW)
+    }
+    this.world.position.x += ((s.shiftX || 0) - this.world.position.x) * (s.snap ? 1 : 0.06)
+    this.world.position.y += (netW * -0.78 - this.world.position.y) * 0.06
+    this.world.rotation.y += (s.mx * 0.35 * (1 - netW * 0.55) - this.world.rotation.y) * 0.04
+    this.world.rotation.x += (-s.my * 0.22 * (1 - netW * 0.55) - this.world.rotation.x) * 0.04
+    if (this.stars) {
+      this.stars.rotation.y += 0.0004
+      this.stars.rotation.x = -s.my * 0.08
+    }
+
+    // camera path
+    const sf = s.scrollFrac
+    const keys = CAMERA_KEYS
+    let ka = keys[0]
+    let kb = keys[keys.length - 1]
+    for (let i = 0; i < keys.length - 1; i++)
+      if (sf >= keys[i].t && sf <= keys[i + 1].t) {
+        ka = keys[i]
+        kb = keys[i + 1]
+        break
+      }
+    const kt = smooth((sf - ka.t) / Math.max(1e-5, kb.t - ka.t))
+    const asp = window.innerWidth / Math.max(1, window.innerHeight)
+    const aspX = Math.min(1, asp / 1.5)
+    for (let c = 0; c < 3; c++) {
+      const par =
+        c === 0
+          ? s.mx * 0.3 + Math.sin(time * 0.3) * 0.05
+          : c === 1
+            ? -s.my * 0.22 + Math.cos(time * 0.24) * 0.04
+            : 0
+      let tp = ka.p[c] + (kb.p[c] - ka.p[c]) * kt
+      if (c === 0) tp *= aspX
+      tp += par
+      const tl = ka.l[c] + (kb.l[c] - ka.l[c]) * kt
+      this._camP[c] += (tp - this._camP[c]) * (s.snap ? 1 : 0.055)
+      this._camL[c] += (tl - this._camL[c]) * (s.snap ? 1 : 0.055)
+    }
+    this.camera.position.set(this._camP[0], this._camP[1], this._camP[2])
+    const roll = s.velS * 0.004 + Math.sin(time * 0.13) * 0.008
+    this.camera.up.set(Math.sin(roll), Math.cos(roll), 0)
+    this.camera.lookAt(this._camL[0], this._camL[1], this._camL[2])
+    const fovT = 50 + Math.max(0, 1.15 - asp) * 16 + Math.min(4, Math.abs(s.velS) * 0.9)
+    if (Math.abs(this.camera.fov - fovT) > 0.05) {
+      this.camera.fov += (fovT - this.camera.fov) * 0.1
+      this.camera.updateProjectionMatrix()
+    }
+
+    // terrain reveal (only once the net has dissolved)
+    const tw = s.intro * (1 - netW)
+    if (this.terrMat) {
+      this.terrain.visible = tw > 0.01
+      this.terrMat.uniforms.uTime.value = time
+      this.terrMat.uniforms.uCamPos.value.copy(this.camera.position)
+      this.terrMat.uniforms.uReveal.value = tw
+    }
+    if (this.descPts && this.descPoints.visible && tw > 0.02) {
+      const e2 = 0.4
+      const sp2 = 0.045 * fs
+      const dpp = this.descPos
+      const dts = this.descPts
+      for (let i = 0; i < this.descN; i++) {
+        const q = dts[i]
+        const gx = (this.terrHeight(q.x + e2, q.z) - this.terrHeight(q.x - e2, q.z)) / (2 * e2)
+        const gz = (this.terrHeight(q.x, q.z + e2) - this.terrHeight(q.x, q.z - e2)) / (2 * e2)
+        q.x -= gx * sp2
+        q.z -= gz * sp2
+        if (q.x * q.x + q.z * q.z < 1.6) {
+          const a2 = Math.random() * Math.PI * 2
+          const r2 = 8 + Math.random() * 10
+          q.x = Math.cos(a2) * r2
+          q.z = Math.sin(a2) * r2
+        }
+        dpp[i * 3] = q.x
+        dpp[i * 3 + 1] = this.terrHeight(q.x, q.z) + 0.55
+        dpp[i * 3 + 2] = q.z
+      }
+      this.descGeo.attributes.position.needsUpdate = true
+      this.descPoints.material.opacity = 0.5 * tw
+    }
+    if (this.basinGlow) this.basinGlow.material.opacity = (0.055 + 0.02 * Math.sin(time * 1.2)) * tw
+
+    if (this.composer && this.usePost) this.composer.render()
+    else this.renderer.render(this.scene, this.camera)
+    return { stageChanged, morph: p }
+  }
+
+  dispose() {
+    this.scene.traverse((o) => {
+      if (o.geometry) o.geometry.dispose()
+      if (o.material) {
+        const mats = Array.isArray(o.material) ? o.material : [o.material]
+        mats.forEach((m) => {
+          Object.values(m.uniforms || {}).forEach((u) => {
+            if (u.value && u.value.isTexture) u.value.dispose()
+          })
+          if (m.map) m.map.dispose()
+          m.dispose()
+        })
+      }
+    })
+    this.sprite.dispose()
+    if (this.composer) this.composer.dispose()
+    this.renderer.dispose()
+    this.renderer = null
+    this.points = null
+    THREE.ColorManagement.enabled = this._prevColorManagement
+  }
+}

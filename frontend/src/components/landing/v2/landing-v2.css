@@ -1,0 +1,104 @@
+/* Landing v2 (Optima design language) — scoped via .landing-v2 root */
+
+.landing-v2 {
+  background: #06070c;
+  color: #eef1f8;
+  font-family: 'Manrope', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.landing-v2 ::selection {
+  background: #6da8ff;
+  color: #06070c;
+}
+
+.landing-v2 a {
+  color: #eef1f8;
+  text-decoration: none;
+  transition: color 0.3s, opacity 0.3s, border-color 0.3s, background 0.3s;
+}
+
+.landing-v2 a:hover {
+  color: #8fb6ff;
+}
+
+.landing-v2 p {
+  text-wrap: pretty;
+}
+
+.lv2-serif {
+  font-family: 'Fraunces', Georgia, serif;
+}
+
+.lv2-label {
+  font-size: 11.5px;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  color: #6da8ff;
+}
+
+.lv2-gradient-text {
+  font-style: italic;
+  background: linear-gradient(90deg, #dfe9ff, #7ea6ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* pill links (nav CTA + buttons) */
+.lv2-pill {
+  display: inline-block;
+  padding: 9px 20px;
+  border-radius: 100px;
+  border: 1px solid rgba(180, 205, 255, 0.35);
+  white-space: nowrap;
+}
+
+.lv2-pill:hover {
+  border-color: #6da8ff;
+  color: #8fb6ff;
+}
+
+.lv2-pill-solid {
+  display: inline-block;
+  background: #6da8ff;
+  color: #06070c;
+  border-radius: 100px;
+  font-weight: 500;
+}
+
+.lv2-pill-solid:hover {
+  background: #8fb6ff;
+  color: #06070c;
+}
+
+@keyframes lv2-scrolldot {
+  0% { transform: translateY(0); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: translateY(16px); opacity: 0; }
+}
+
+@keyframes lv2-marquee {
+  to { transform: translateX(-50%); }
+}
+
+/* Touch devices: no custom cursor */
+@media (pointer: coarse) {
+  .landing-v2 [data-cursor] {
+    display: none !important;
+  }
+}
+
+/* Small screens: drop desktop nav links + section dots, shrink hero cards */
+@media (max-width: 760px) {
+  .landing-v2 [data-nav-desktop] {
+    display: none !important;
+  }
+  .landing-v2 [data-hero-step] {
+    max-width: 88vw !important;
+    padding: 20px !important;
+  }
+  .landing-v2 [data-dots] {
+    display: none !important;
+  }
+}
