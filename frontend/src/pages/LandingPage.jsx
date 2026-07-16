@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useTheme } from '../context/ThemeContext'
 import SEO from '../components/SEO'
 import useLandingEngine from '../components/landing/v2/useLandingEngine'
+import ModuleModal from '../components/landing/v2/ModuleModal'
 import '../components/landing/v2/landing-v2.css'
 
 /* ═══════════════════════════════════════════════════════════════
@@ -115,6 +116,22 @@ const GALLERY_CARDS = [
   {
     img: '/samples/cat.jpg', tag: 'imagenet.img',
     title: 'General image classification', desc: 'ImageNet-1k, EfficientNetV2 backbone.',
+  },
+  {
+    img: '/samples/pizza.jpg', tag: 'food.img',
+    title: 'Food-101 recognition', desc: '101 dishes, fine-tuned EfficientNet.',
+  },
+  {
+    img: '/samples/peacock.jpg', tag: 'birds.img',
+    title: 'Birds-525 classification', desc: '525 species at fine-grained detail.',
+  },
+  {
+    img: '/samples/zebra.jpg', tag: 'animals.img',
+    title: 'Animal detection', desc: 'YOLOv8 tuned for wildlife scenes.',
+  },
+  {
+    img: '/samples/pose-dance.jpg', tag: 'pose.img',
+    title: 'Pose estimation', desc: '17-keypoint skeletons in real time.',
   },
 ]
 
@@ -254,10 +271,26 @@ function TickerGroup() {
    ══════════════════════════════════════════════════════════════ */
 
 export default function LandingPage() {
-  const navigate = useNavigate()
   const { theme } = useTheme()
   const { refs, toggleSound, scrollToId } = useLandingEngine({ sectionIds: SECTION_IDS })
   const [soundOn, setSoundOn] = useState(false)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+
+  // Esc closes the mobile drawer (the modal handles its own Esc)
+  useEffect(() => {
+    if (!drawerOpen) return undefined
+    const onKey = (e) => {
+      if (e.key === 'Escape') setDrawerOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [drawerOpen])
 
   let initialLoaderVisible = true
   try {
@@ -432,11 +465,63 @@ export default function LandingPage() {
           >
             Sound · {soundOn ? 'on' : 'off'}
           </a>
-          <a data-magnet href="#cta" onClick={(e) => handleAnchor(e, 'cta')} className="lv2-pill">
+          <button
+            data-magnet
+            data-nav-desktop
+            onClick={() => setModalOpen(true)}
+            className="lv2-pill"
+            style={{ background: 'none', color: '#eef1f8', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}
+          >
             Get Started
-          </a>
+          </button>
+          <button
+            className="lv2-burger"
+            aria-label={drawerOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={drawerOpen}
+            onClick={() => setDrawerOpen((v) => !v)}
+          >
+            <span />
+            <span />
+            <span />
+          </button>
         </div>
       </nav>
+
+      {/* Mobile drawer */}
+      {drawerOpen && (
+        <div className="lv2-drawer">
+          {[
+            { id: 'clean', label: 'Clean' },
+            { id: 'train', label: 'Train' },
+            { id: 'try', label: 'Try' },
+            { id: 'gallery', label: 'Showcase' },
+          ].map((l) => (
+            <button
+              key={l.id}
+              onClick={() => {
+                setDrawerOpen(false)
+                scrollToId(l.id)
+              }}
+            >
+              {l.label}
+            </button>
+          ))}
+          <Link to="/docs" onClick={() => setDrawerOpen(false)}>Docs</Link>
+          <button onClick={() => setSoundOn(toggleSound())} style={{ color: '#8fb6ff' }}>
+            Sound · {soundOn ? 'on' : 'off'}
+          </button>
+          <button
+            onClick={() => {
+              setDrawerOpen(false)
+              setModalOpen(true)
+            }}
+            className="lv2-pill"
+            style={{ fontSize: '1.1rem', padding: '12px 30px', fontFamily: "'Manrope',sans-serif" }}
+          >
+            Get Started
+          </button>
+        </div>
+      )}
 
       {/* ═══ HERO — 520vh pinned scroll story ═══ */}
       <section id="hero" ref={refs.heroWrap} style={{ position: 'relative', height: '520vh', zIndex: 2 }}>
@@ -580,6 +665,12 @@ export default function LandingPage() {
             </div>
           ))}
         </div>
+        <Link
+          to="/about"
+          style={{ display: 'inline-block', marginTop: 42, fontSize: 14, color: '#8fb6ff', letterSpacing: '0.04em' }}
+        >
+          Read the full story →
+        </Link>
       </section>
 
       {/* ═══ TICKER ═══ */}
@@ -757,55 +848,55 @@ export default function LandingPage() {
               <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,255,255,0.15)' }} />
               <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,255,255,0.15)' }} />
               <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,255,255,0.15)' }} />
-              <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 11.5, color: '#8890a3', marginLeft: 8 }}>model-hub · live</span>
+              <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 11.5, color: '#8890a3', marginLeft: 8 }}>model-hub · prediction</span>
             </div>
-            <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div
-                data-reveal
-                style={{
-                  alignSelf: 'flex-end', maxWidth: '80%', background: '#2b3bd6', color: '#eef1f8',
-                  padding: '11px 15px', borderRadius: '14px 14px 3px 14px', fontSize: 14, lineHeight: 1.5,
-                }}
-              >
-                What&apos;s in this chest X-ray?
-              </div>
-              <div
-                data-reveal
-                style={{
-                  alignSelf: 'flex-start', maxWidth: '86%', background: 'rgba(255,255,255,0.06)',
-                  padding: '11px 15px', borderRadius: '14px 14px 14px 3px', fontSize: 14, lineHeight: 1.5,
-                }}
-              >
-                Pneumonia — confidence <strong>0.94</strong>. Attention concentrated in the right lower lobe.
-              </div>
-              <div data-reveal style={{ display: 'flex', gap: 10, marginTop: 6 }}>
-                <input
-                  placeholder="Upload an image or ask…"
-                  readOnly
-                  onFocus={() => navigate('/deep-learning')}
-                  style={{
-                    flex: 1, border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.04)',
-                    color: '#eef1f8', borderRadius: 10, padding: '11px 14px',
-                    fontFamily: "'Archivo',sans-serif", fontSize: 14, outline: 'none',
-                  }}
+            <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div data-reveal style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', aspectRatio: '16/9' }}>
+                <img
+                  src="/samples/cat.jpg"
+                  alt="Sample input for image classification"
+                  loading="lazy"
+                  onError={(e) => { e.currentTarget.style.display = 'none' }}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'saturate(0.85) brightness(0.92)' }}
                 />
-                <button
-                  onClick={() => navigate('/deep-learning')}
+                <span
                   style={{
-                    background: '#6da8ff', color: '#06070c', border: 'none', borderRadius: 10,
-                    padding: '0 18px', fontFamily: "'Archivo',sans-serif", fontSize: 14, fontWeight: 500, cursor: 'pointer',
+                    position: 'absolute', bottom: 10, left: 10, fontFamily: 'ui-monospace,monospace',
+                    fontSize: 11, color: '#b6bdcc', background: 'rgba(6,7,12,0.7)', padding: '4px 8px', borderRadius: 6,
                   }}
                 >
-                  Run
-                </button>
+                  input.jpg · 224×224
+                </span>
               </div>
+              {[
+                { label: 'tabby cat', conf: 0.93 },
+                { label: 'tiger cat', conf: 0.04 },
+                { label: 'Egyptian cat', conf: 0.02 },
+              ].map((r) => (
+                <div key={r.label} data-reveal style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 12.5, color: '#c6cddc', width: 110, flexShrink: 0 }}>
+                    {r.label}
+                  </span>
+                  <div style={{ flex: 1, height: 7, borderRadius: 4, background: 'rgba(255,255,255,0.07)', overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        width: `${r.conf * 100}%`, height: '100%', borderRadius: 4,
+                        background: 'linear-gradient(90deg,#6da8ff,#b79dff)',
+                      }}
+                    />
+                  </div>
+                  <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 12.5, color: '#8fb6ff', width: 42, textAlign: 'right' }}>
+                    {r.conf.toFixed(2)}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
       {/* ═══ HORIZONTAL GALLERY ═══ */}
-      <section id="gallery" ref={refs.galleryWrap} style={{ position: 'relative', zIndex: 2, height: '360vh' }}>
+      <section id="gallery" ref={refs.galleryWrap} style={{ position: 'relative', zIndex: 2, height: '460vh' }}>
         <div style={{ position: 'sticky', top: 0, height: '100vh', overflow: 'hidden', display: 'flex', alignItems: 'center' }}>
           <div
             ref={refs.galleryTrack}
@@ -817,9 +908,9 @@ export default function LandingPage() {
                 className="lv2-serif"
                 style={{ fontWeight: 200, fontSize: 'clamp(2.2rem,4.6vw,4.2rem)', lineHeight: 1, letterSpacing: '-0.025em' }}
               >
-                Nine models,
+                Optimized in
                 <br />
-                in the <span style={{ fontStyle: 'italic' }}>wild.</span>
+                the <span style={{ fontStyle: 'italic' }}>wild.</span>
               </h2>
               <p style={{ color: '#aab3c5', marginTop: 20, fontSize: 15, lineHeight: 1.6, maxWidth: '32ch' }}>
                 Vision, medical imaging, and detection — one engine. Scroll →
@@ -886,15 +977,14 @@ export default function LandingPage() {
             Pick a module and start your research workflow.
           </p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 46, flexWrap: 'wrap' }}>
-            <a
-              href="#clean"
+            <button
               data-magnet
-              onClick={(e) => handleAnchor(e, 'clean')}
+              onClick={() => setModalOpen(true)}
               className="lv2-pill-solid"
-              style={{ padding: '15px 34px', fontSize: 15 }}
+              style={{ padding: '15px 34px', fontSize: 15, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
             >
               Initialize System
-            </a>
+            </button>
             <Link to="/deep-learning" data-magnet className="lv2-pill" style={{ padding: '15px 34px', fontSize: 15 }}>
               Try AI Models
             </Link>
@@ -920,6 +1010,8 @@ export default function LandingPage() {
           <div>© 2026 ML Research Platform · Dr. Kobkoon Janngam · Chiang Mai University</div>
         </footer>
       </section>
+
+      <ModuleModal open={modalOpen} onClose={() => setModalOpen(false)} />
     </div>
   )
 }
