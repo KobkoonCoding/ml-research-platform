@@ -576,7 +576,7 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* Mobile drawer */}
+      {/* Mobile drawer — top-down curtain reveal, staggered items */}
       {drawerOpen && (
         <div className="lv2-drawer">
           {[
@@ -584,19 +584,36 @@ export default function LandingPage() {
             { id: 'train', label: 'Train' },
             { id: 'try', label: 'Try' },
             { id: 'gallery', label: 'Showcase' },
-          ].map((l) => (
+          ].map((l, i) => (
             <button
               key={l.id}
+              className="lv2-drawer-item"
+              style={{ animationDelay: `${0.18 + i * 0.07}s` }}
               onClick={() => {
                 setDrawerOpen(false)
                 scrollToId(l.id)
               }}
             >
+              <span className="lv2-drawer-num">0{i + 1}</span>
               {l.label}
+              <span className="lv2-drawer-arrow">→</span>
             </button>
           ))}
-          <Link to="/docs" onClick={() => setDrawerOpen(false)}>Docs</Link>
-          <button onClick={() => setSoundOn(toggleSound())} style={{ color: '#8fb6ff' }}>
+          <Link
+            className="lv2-drawer-item"
+            style={{ animationDelay: '0.46s' }}
+            to="/docs"
+            onClick={() => setDrawerOpen(false)}
+          >
+            <span className="lv2-drawer-num">05</span>
+            Docs
+            <span className="lv2-drawer-arrow">→</span>
+          </Link>
+          <button
+            className="lv2-drawer-item"
+            style={{ animationDelay: '0.53s', color: '#8fb6ff', fontSize: '1.15rem' }}
+            onClick={() => setSoundOn(toggleSound())}
+          >
             Sound · {soundOn ? 'on' : 'off'}
           </button>
           <button
@@ -604,11 +621,17 @@ export default function LandingPage() {
               setDrawerOpen(false)
               setModalOpen(true)
             }}
-            className="lv2-pill"
-            style={{ fontSize: '1.1rem', padding: '12px 30px', fontFamily: "'Manrope',sans-serif" }}
+            className="lv2-drawer-item lv2-pill-solid"
+            style={{
+              animationDelay: '0.6s', fontSize: '1.05rem', padding: '14px 36px',
+              fontFamily: "'Manrope',sans-serif", border: 'none', cursor: 'pointer', marginTop: 10,
+            }}
           >
             Get Started
           </button>
+          <div className="lv2-drawer-foot" style={{ animationDelay: '0.7s' }}>
+            Where Mathematics Meets Machine Learning
+          </div>
         </div>
       )}
 

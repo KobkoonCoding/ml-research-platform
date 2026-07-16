@@ -136,23 +136,82 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 26px;
-  background: rgba(5, 6, 10, 0.9);
+  gap: 22px;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(109, 168, 255, 0.07), transparent 55%),
+    rgba(5, 6, 10, 0.92);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  animation: lv2-fade-in 0.3s ease both;
+  animation: lv2-drawer-in 0.55s cubic-bezier(0.76, 0, 0.24, 1) both;
+}
+
+@keyframes lv2-drawer-in {
+  from { clip-path: inset(0 0 100% 0); }
+  to { clip-path: inset(0 0 0% 0); }
 }
 
 .lv2-drawer a,
 .lv2-drawer button {
   font-family: 'Fraunces', Georgia, serif;
   font-weight: 300;
-  font-size: 1.7rem;
+  font-size: 1.8rem;
   letter-spacing: -0.01em;
   background: none;
   border: none;
   color: #eef1f8;
   cursor: pointer;
+}
+
+.lv2-drawer-item {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  opacity: 0;
+  animation: lv2-drawer-item 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes lv2-drawer-item {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+    filter: blur(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+.lv2-drawer-num {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: #6da8ff;
+}
+
+.lv2-drawer-arrow {
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.1rem;
+  color: rgba(143, 182, 255, 0.55);
+  transition: transform 0.3s, color 0.3s;
+}
+
+.lv2-drawer-item:active .lv2-drawer-arrow,
+.lv2-drawer-item:hover .lv2-drawer-arrow {
+  transform: translateX(6px);
+  color: #8fb6ff;
+}
+
+.lv2-drawer-foot {
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #5a6273;
+  margin-top: 18px;
+  opacity: 0;
+  animation: lv2-drawer-item 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
 @media (max-width: 760px) {
@@ -180,7 +239,7 @@
   color: rgba(238, 241, 248, 0.6);
   padding: 8px 14px;
   border-radius: 100px;
-  transition: color 0.3s, background 0.3s;
+  transition: color 0.3s, background 0.3s, transform 0.3s;
   font-family: inherit;
   white-space: nowrap;
 }
@@ -188,6 +247,7 @@
 .lv2-nav-link:hover {
   color: #eef1f8;
   background: rgba(255, 255, 255, 0.05);
+  transform: translateY(-1px);
 }
 
 .lv2-nav-link.lv2-on {

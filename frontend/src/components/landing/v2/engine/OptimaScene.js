@@ -293,7 +293,8 @@ export default class OptimaScene {
   _buildSmoke() {
     const tex = this._makeSmokeTex()
     this.smoke = []
-    for (let i = 0; i < 13; i++) {
+    const COUNT = window.innerWidth < 768 ? 16 : 36
+    for (let i = 0; i < COUNT; i++) {
       const mat = new THREE.SpriteMaterial({
         map: tex,
         transparent: true,
@@ -303,19 +304,81 @@ export default class OptimaScene {
         rotation: Math.random() * Math.PI * 2,
       })
       const s = new THREE.Sprite(mat)
-      const a = (i / 13) * Math.PI * 2 + Math.random() * 0.7
-      const r = 2.0 + Math.random() * 4.6
-      s.position.set(Math.cos(a) * r, -0.8 + Math.random() * 2.6, Math.sin(a) * r - 1.2)
-      s.scale.setScalar(3.6 + Math.random() * 4.8)
+      const a = (i / COUNT) * Math.PI * 2 + Math.random() * 0.7
+      const r = 1.4 + Math.random() * 5.4
+      s.position.set(Math.cos(a) * r, -1.0 + Math.random() * 3.2, Math.sin(a) * r - 1.0)
+      s.scale.setScalar(2.4 + Math.random() * 6.0)
       this.scene.add(s)
       this.smoke.push({
         s,
-        baseO: 0.05 + Math.random() * 0.08,
-        rot: (Math.random() - 0.5) * 0.0009,
+        baseO: 0.06 + Math.random() * 0.11,
+        rot: (Math.random() - 0.5) * 0.0012,
         drift: Math.random() * 100,
         y0: s.position.y,
+        x0: s.position.x,
       })
     }
+    this._buildFogDust()
+  }
+
+  /**
+   * Ultra-fine mist: thousands of tiny soft points drifting in slow curls.
+   * Individually invisible — together they read as smooth volumetric smoke.
+   */
+  _buildFogDust() {
+    const N = window.innerWidth < 768 ? 2600 : 6000
+    const pos = new Float32Array(N * 3)
+    const seed = new Float32Array(N * 3)
+    for (let i = 0; i < N; i++) {
+      pos[i * 3] = (Math.random() - 0.5) * 13
+      pos[i * 3 + 1] = -1.3 + Math.random() * 4.4
+      pos[i * 3 + 2] = -5 + Math.random() * 8.6
+      seed[i * 3] = Math.random()
+      seed[i * 3 + 1] = Math.random()
+      seed[i * 3 + 2] = 0.4 + Math.random() * 1.2
+    }
+    const geom = new THREE.BufferGeometry()
+    geom.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+    geom.setAttribute('aSeed', new THREE.BufferAttribute(seed, 3))
+    this.fogMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uFog: { value: 0 },
+        uPR: { value: Math.min(devicePixelRatio, 1.25) },
+        uVh: { value: window.innerHeight / 850 },
+      },
+      vertexShader: [
+        'uniform float uTime; uniform float uFog; uniform float uPR; uniform float uVh;',
+        'attribute vec3 aSeed;',
+        'varying float vA;',
+        'void main(){',
+        '  vec3 p = position;',
+        '  p.x += sin(uTime * 0.05 * aSeed.z + aSeed.x * 43.0) * 0.9;',
+        '  p.y += sin(uTime * 0.04 * aSeed.z + aSeed.y * 31.0) * 0.4;',
+        '  p.z += cos(uTime * 0.045 * aSeed.z + aSeed.x * 57.0) * 0.7;',
+        '  vec4 mv = modelViewMatrix * vec4(p, 1.0);',
+        '  gl_Position = projectionMatrix * mv;',
+        '  float tw = 0.65 + 0.35 * sin(uTime * (0.3 + aSeed.z * 0.5) + aSeed.y * 90.0);',
+        '  vA = uFog * tw * (0.16 + aSeed.y * 0.2);',
+        '  gl_PointSize = (0.035 + aSeed.x * 0.075) * uPR * uVh * (260.0 / -mv.z);',
+        '}',
+      ].join('\n'),
+      fragmentShader: [
+        'varying float vA;',
+        'void main(){',
+        '  vec2 q = gl_PointCoord - 0.5;',
+        '  float a = smoothstep(0.5, 0.0, length(q));',
+        '  gl_FragColor = vec4(vec3(0.5, 0.6, 0.85), a * vA);',
+        '}',
+      ].join('\n'),
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    })
+    this.fogDust = new THREE.Points(geom, this.fogMat)
+    this.fogDust.frustumCulled = false
+    this.fogDust.visible = false
+    this.scene.add(this.fogDust)
   }
 
   _buildNebula() {
@@ -727,9 +790,10 @@ export default class OptimaScene {
       uniforms: {
         uTime: { value: 0 }, uMorph: { value: 0 }, uFlow: { value: 1 },
         uIntro: { value: 0 }, uPR: { value: Math.min(devicePixelRatio, 1.25) },
+        uVh: { value: window.innerHeight / 850 },
       },
       vertexShader: [
-        'uniform float uTime; uniform float uMorph; uniform float uFlow; uniform float uIntro; uniform float uPR;',
+        'uniform float uTime; uniform float uMorph; uniform float uFlow; uniform float uIntro; uniform float uPR; uniform float uVh;',
         'attribute vec3 aWord; attribute vec4 aPort; attribute vec3 aPortC;',
         'attribute vec3 aNetA; attribute vec3 aNetB; attribute vec3 aNetC; attribute vec3 aCol;',
         'attribute vec2 aFlowD; attribute vec2 aMisc;',
@@ -766,7 +830,8 @@ export default class OptimaScene {
         '    float rr = 0.26 * pow(fract(seed * 17.3), 0.34) * (1.0 + 0.06 * sin(uTime * 2.6));',
         '    core = dirN * rr + vec3(0.0, 0.12, 0.0);',
         '    coreGlow = 1.15;',
-        '    coreCol = vec3(1.02, 0.99, 0.9);',
+        // golden-white reactor heart
+        '    coreCol = vec3(1.12, 0.98, 0.72);',
         '  } else if (kind < 0.82) {',
         '    float ri = floor((kind - 0.2) * 4.83);',
         // decorrelated angle so each ring fills evenly instead of clumping
@@ -781,7 +846,8 @@ export default class OptimaScene {
         '    ring = vec3(ring.x * cy + ring.z * sy, ring.y, -ring.x * sy + ring.z * cy);',
         '    core = ring + vec3(0.0, 0.12, 0.0);',
         '    coreGlow = 0.95;',
-        '    coreCol = mix(vec3(0.42, 0.72, 1.05), vec3(0.65, 0.6, 1.05), ri * 0.5);',
+        // rings sweep cyan → magenta from inner to outer
+        '    coreCol = mix(vec3(0.3, 0.9, 1.1), vec3(0.95, 0.42, 1.02), ri * 0.5);',
         '  } else {',
         '    vec3 dirD = normalize(vec3(sin(seed*77.0), 0.35 * sin(seed*141.0), cos(seed*99.0)) + 1e-3);',
         '    float raD = 1.7 + fract(seed * 31.7) * 0.7;',
@@ -825,7 +891,8 @@ export default class OptimaScene {
         '  float formedW = max(max(tessW, coreW), max(wordW, portW));',
         '  float sizeBase = mix(aMisc.y, min(aMisc.y, 0.062), formedW);',
         // ── per-stage color ──
-        '  vec3 tessCol = mix(vec3(0.4, 0.48, 0.95), vec3(0.85, 0.95, 1.1), clamp((persp - 0.72) * 1.5, 0.0, 1.0));',
+        // tesseract: deep electric violet far → glowing cyan near (4th-D depth cue)
+        '  vec3 tessCol = mix(vec3(0.5, 0.34, 1.05), vec3(0.5, 1.0, 1.12), clamp((persp - 0.72) * 1.5, 0.0, 1.0));',
         '  float wnx = clamp(aWord.x / 3.6 + 0.5, 0.0, 1.0);',
         '  float sweep = 0.7 + 0.5 * sin(uTime * 1.2 - wnx * 5.2);',
         '  vec3 wordCol = mix(vec3(0.87, 0.92, 1.05), vec3(0.49, 0.65, 1.0), wnx) * sweep;',
@@ -843,7 +910,7 @@ export default class OptimaScene {
         '  float portA = 0.13 + aPort.w * 0.5;',
         '  vA = twP * ig * mix(aStage, portA, portW);',
         '  float sizeStage = 1.0 + 0.35 * sphW + (0.25 * tessGlow) * tessW + (0.2 * coreGlow) * coreW + 0.1 * wordW;',
-        '  gl_PointSize = sizeBase * uPR * twP * sizeStage * mix(1.0, 0.5 + aPort.w * 0.85, portW) * (260.0 / -mv.z);',
+        '  gl_PointSize = sizeBase * uPR * uVh * twP * sizeStage * mix(1.0, 0.5 + aPort.w * 0.85, portW) * (260.0 / -mv.z);',
         '}',
       ].join('\n'),
       fragmentShader: [
@@ -1027,9 +1094,10 @@ export default class OptimaScene {
         uTime: { value: 0 },
         uPortW: { value: 0 },
         uPR: { value: Math.min(devicePixelRatio, 1.25) },
+        uVh: { value: window.innerHeight / 850 },
       },
       vertexShader: [
-        'uniform float uTime; uniform float uPortW; uniform float uPR;',
+        'uniform float uTime; uniform float uPortW; uniform float uPR; uniform float uVh;',
         'attribute vec4 aTgt; attribute vec3 aColor; attribute vec3 aScat; attribute vec2 aSeed;',
         'varying vec3 vCol; varying float vA;',
         'float ss(float x){ x = clamp(x, 0.0, 1.0); return x*x*(3.0-2.0*x); }',
@@ -1045,7 +1113,7 @@ export default class OptimaScene {
         '  float tw = 0.85 + 0.15 * sin(uTime * (1.0 + aSeed.x * 2.0) + aSeed.y * 80.0);',
         '  vA = e * uPortW * tw * (0.08 + aTgt.w * 0.38);',
         '  vCol = aColor * (0.5 + aTgt.w * 0.65);',
-        '  gl_PointSize = (0.03 + aTgt.w * 0.05) * uPR * tw * (260.0 / -mv.z);',
+        '  gl_PointSize = (0.03 + aTgt.w * 0.05) * uPR * uVh * tw * (260.0 / -mv.z);',
         '}',
       ].join('\n'),
       fragmentShader: [
@@ -1076,6 +1144,10 @@ export default class OptimaScene {
     this.camera.aspect = w / h
     this.camera.updateProjectionMatrix()
     if (this.composer) this.composer.setSize(w, h)
+    const vh = h / 850
+    if (this.pMat) this.pMat.uniforms.uVh.value = vh
+    if (this.portExtraMat) this.portExtraMat.uniforms.uVh.value = vh
+    if (this.fogMat) this.fogMat.uniforms.uVh.value = vh
   }
 
   /**
@@ -1132,7 +1204,7 @@ export default class OptimaScene {
       stageChanged = true
     }
     this.pulse = (this.pulse || 0) * (s.snap ? 0 : 0.955)
-    if (this.bloom) this.bloom.strength = 0.55 + this.pulse * 0.7 + portW * 0.2
+    if (this.bloom) this.bloom.strength = 0.55 + this.pulse * 0.7 + portW * 0.2 + netW * 0.35
     if (this.gradePass) {
       this.gradePass.uniforms.uTime.value = time
       this.gradePass.uniforms.uCA.value = 1 + this.pulse * 7 + Math.min(3, Math.abs(s.velS) * 0.5)
@@ -1145,12 +1217,12 @@ export default class OptimaScene {
 
     if (this.netGroup) {
       this.netGroup.visible = netW > 0.02
-      this.netLines.material.opacity = netW * (0.085 + 0.025 * Math.sin(time * 1.4))
-      this.netNodesPts.material.opacity = netW * 0.75
-      this.netNodesPts.material.size = 0.055 + 0.008 * Math.sin(time * 2.3)
-      this.netCoresA.material.opacity = netW * (0.38 + 0.1 * Math.sin(time * 1.9))
-      this.netCoresA.material.size = 0.44 + 0.04 * Math.sin(time * 1.9)
-      this.netCoresB.material.opacity = netW * (0.24 + 0.05 * Math.sin(time * 2.6 + 1.3))
+      this.netLines.material.opacity = netW * (0.15 + 0.05 * Math.sin(time * 1.4))
+      this.netNodesPts.material.opacity = netW * 0.95
+      this.netNodesPts.material.size = 0.062 + 0.01 * Math.sin(time * 2.3)
+      this.netCoresA.material.opacity = netW * (0.55 + 0.14 * Math.sin(time * 1.9))
+      this.netCoresA.material.size = 0.52 + 0.05 * Math.sin(time * 1.9)
+      this.netCoresB.material.opacity = netW * (0.36 + 0.08 * Math.sin(time * 2.6 + 1.3))
     }
 
     if (this.portExtra) {
@@ -1159,16 +1231,23 @@ export default class OptimaScene {
       this.portExtraMat.uniforms.uPortW.value = portW
     }
 
-    // drifting mist — everywhere except the neural-net stage, slightly
-    // thinned while the portrait owns the frame
+    // drifting mist — everywhere except the neural-net stage, and at its
+    // THICKEST around the developer portrait (the figure emerges from it)
     if (this.smoke) {
-      const smokeO = (1 - netW) * (1 - portW * 0.45) * s.intro
+      const smokeO = (1 - netW) * (1 + portW * 0.85) * s.intro
       for (let i = 0; i < this.smoke.length; i++) {
         const m = this.smoke[i]
-        m.s.material.opacity = m.baseO * smokeO * (0.75 + 0.25 * Math.sin(time * 0.1 + m.drift))
+        m.s.material.opacity = Math.min(0.24, m.baseO * smokeO * (0.75 + 0.25 * Math.sin(time * 0.1 + m.drift)))
         m.s.material.rotation += m.rot
-        m.s.position.y = m.y0 + Math.sin(time * 0.06 + m.drift) * 0.35
+        m.s.position.y = m.y0 + Math.sin(time * 0.06 + m.drift) * 0.4
+        m.s.position.x = m.x0 + Math.sin(time * 0.04 + m.drift * 1.7) * 0.5
       }
+    }
+    if (this.fogDust) {
+      const fogO = (1 - netW) * (0.7 + portW * 0.8) * s.intro
+      this.fogDust.visible = fogO > 0.01
+      this.fogMat.uniforms.uTime.value = time
+      this.fogMat.uniforms.uFog.value = fogO
     }
 
     const spd = this.opts.rotationSpeed
