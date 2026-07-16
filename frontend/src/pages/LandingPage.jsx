@@ -4,6 +4,8 @@ import { useTheme } from '../context/ThemeContext'
 import SEO from '../components/SEO'
 import useLandingEngine from '../components/landing/v2/useLandingEngine'
 import ModuleModal from '../components/landing/v2/ModuleModal'
+import ParticlePortrait from '../components/landing/v2/ParticlePortrait'
+import { DEVELOPER_PROFILE } from '../lib/developerData'
 import '../components/landing/v2/landing-v2.css'
 
 /* ═══════════════════════════════════════════════════════════════
@@ -87,7 +89,7 @@ const LANDING_JSON_LD = {
    CONTENT
    ══════════════════════════════════════════════════════════════ */
 
-const SECTION_IDS = ['hero', 'clean', 'train', 'try', 'gallery', 'cta']
+const SECTION_IDS = ['hero', 'clean', 'train', 'try', 'gallery', 'developer', 'cta']
 
 const DOTS = [
   { target: 'hero', title: 'Intro' },
@@ -95,6 +97,7 @@ const DOTS = [
   { target: 'train', title: 'Train' },
   { target: 'try', title: 'Try' },
   { target: 'gallery', title: 'Showcase' },
+  { target: 'developer', title: 'Developer' },
   { target: 'cta', title: 'Start' },
 ]
 
@@ -957,10 +960,59 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ═══ MEET THE DEVELOPER ═══ */}
+      <section id="developer" style={moduleSectionStyle}>
+        <div style={{ ...moduleGridStyle, alignItems: 'center' }}>
+          <div data-reveal style={{ display: 'flex', justifyContent: 'center' }}>
+            <div style={{ position: 'relative', width: 'min(360px,78vw)' }}>
+              {/* soft halo behind the particles */}
+              <div
+                style={{
+                  position: 'absolute', inset: '-18%', pointerEvents: 'none',
+                  background: 'radial-gradient(circle at 50% 42%, rgba(109,168,255,0.14), transparent 65%)',
+                }}
+              />
+              <ParticlePortrait />
+            </div>
+          </div>
+          <div data-reveal style={moduleTextPanelStyle}>
+            <div data-plx="0.1" className="lv2-serif" style={ghostNumStyle}>08</div>
+            <div className="lv2-label" style={{ marginTop: 16 }}>The researcher</div>
+            <h3 className="lv2-serif" style={{ ...moduleH3Style, marginTop: 14 }}>{DEVELOPER_PROFILE.name}</h3>
+            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ color: '#8fb6ff', fontSize: 13.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                {DEVELOPER_PROFILE.role}
+              </span>
+              <span style={{ color: '#5a6273' }}>·</span>
+              <span style={{ color: '#aab3c5', fontSize: 13.5 }}>{DEVELOPER_PROFILE.affiliation}</span>
+            </div>
+            <p style={{ ...moduleParaStyle, fontStyle: 'italic' }}>“{DEVELOPER_PROFILE.bio}”</p>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 28 }}>
+              {DEVELOPER_PROFILE.socialLinks.map((link) => {
+                const isMailto = link.href.startsWith('mailto:')
+                return (
+                  <a
+                    key={link.label}
+                    href={link.href}
+                    target={isMailto ? undefined : '_blank'}
+                    rel={isMailto ? undefined : 'noopener noreferrer'}
+                    aria-label={link.ariaLabel}
+                    className="lv2-pill"
+                    style={{ padding: '8px 18px', fontSize: 13 }}
+                  >
+                    {link.label}
+                  </a>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ═══ CTA + FOOTER ═══ */}
       <section id="cta" style={{ position: 'relative', zIndex: 2, padding: 'clamp(120px,22vh,260px) clamp(20px,7vw,120px)', textAlign: 'center' }}>
         <div data-reveal style={{ maxWidth: 1000, margin: '0 auto' }}>
-          <div className="lv2-label" style={{ marginBottom: 32 }}>08 — Converge · Research platform</div>
+          <div className="lv2-label" style={{ marginBottom: 32 }}>09 — Converge · Research platform</div>
           <h2
             className="lv2-serif"
             style={{ fontWeight: 200, fontSize: 'clamp(2.8rem,9vw,7.5rem)', lineHeight: 0.94, letterSpacing: '-0.03em' }}
