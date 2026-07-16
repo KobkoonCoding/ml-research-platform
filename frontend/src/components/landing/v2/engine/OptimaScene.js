@@ -37,7 +37,10 @@ const CAMERA_KEYS = [
   { t: 0.64, p: [-0.8, 0.2, 4.25], l: [-0.2, 0.02, 0] },
   { t: 0.76, p: [1.2, 0.9, 5.6], l: [0.25, 0.05, 0] },
   { t: 0.87, p: [0.2, 2.6, 8.8], l: [0, 0.1, 0] },
-  { t: 1.0, p: [0.9, 0.55, 2.6], l: [0.35, 0.05, 0] },
+  // final stretch frames the developer portrait (morph stage 3) head-on,
+  // slightly from below so the figure stands against the dark sky
+  { t: 0.94, p: [0, 0.5, 4.9], l: [0, 0.52, 0] },
+  { t: 1.0, p: [0.1, 0.46, 4.3], l: [0.03, 0.55, 0] },
 ]
 
 // Crystal scale — the prototype's full-size octahedron overwhelmed the
@@ -94,6 +97,75 @@ export default class OptimaScene {
     this._buildNebula()
     this.rebuildCloud()
     this._buildKnotMesh()
+    this._loadPortrait()
+  }
+
+  /* ── developer portrait (morph stage 3) ───────────────────── */
+
+  /**
+   * Loads the baked portrait mask (RGB = luminance, A = person mask) and
+   * turns it into weighted 3D targets: X/Y from the image plane, Z a small
+   * luminance relief. Until it loads, aPort falls back to crystal targets.
+   */
+  _loadPortrait() {
+    const img = new Image()
+    img.src = '/dev-portrait.png'
+    img.onload = () => {
+      if (!this.renderer) return
+      const iw = img.naturalWidth
+      const ih = img.naturalHeight
+      const cv = document.createElement('canvas')
+      cv.width = iw
+      cv.height = ih
+      const c2 = cv.getContext('2d')
+      c2.drawImage(img, 0, 0)
+      const data = c2.getImageData(0, 0, iw, ih).data
+      const alphaAt = (x, y) => {
+        if (x < 0 || y < 0 || x >= iw || y >= ih) return 0
+        return data[(y * iw + x) * 4 + 3]
+      }
+      const H = 2.35
+      const scale = H / ih
+      const pts = []
+      for (let y = 0; y < ih; y += 2)
+        for (let x = 0; x < iw; x += 2) {
+          const i = (y * iw + x) * 4
+          if (data[i + 3] < 120) continue
+          let lum = Math.pow(data[i] / 255, 0.75)
+          const edge =
+            alphaAt(x - 2, y) < 120 || alphaAt(x + 2, y) < 120 ||
+            alphaAt(x, y - 2) < 120 || alphaAt(x, y + 2) < 120
+          if (edge) lum = Math.max(lum, 0.55)
+          // soften the hard crop line at the bottom of the bust
+          if (y > ih * 0.88) lum *= 0.35 + 0.65 * ((ih - y) / (ih * 0.12))
+          const px = (x - iw / 2) * scale
+          const py = (ih / 2 - y) * scale + 0.55
+          const pz = (lum - 0.45) * 0.32
+          // brighter pixels get extra copies → face stays dense
+          const copies = 1 + Math.round(lum * 2)
+          for (let k = 0; k < copies; k++) pts.push(px, py, pz, lum)
+        }
+      this.portPts = pts
+      this._setPortraitTargets()
+    }
+  }
+
+  _setPortraitTargets() {
+    if (!this.portPts || !this.points) return
+    const attr = this.points.geometry.getAttribute('aPort')
+    if (!attr) return
+    const src = this.portPts
+    const M = src.length / 4
+    const a = attr.array
+    for (let i = 0; i < this.N; i++) {
+      const s = ((Math.random() * M) | 0) * 4
+      const j = i * 4
+      a[j] = src[s] + (Math.random() - 0.5) * 0.012
+      a[j + 1] = src[s + 1] + (Math.random() - 0.5) * 0.012
+      a[j + 2] = src[s + 2] + (Math.random() - 0.5) * 0.05
+      a[j + 3] = src[s + 3]
+    }
+    attr.needsUpdate = true
   }
 
   /* ── textures ─────────────────────────────────────────────── */
@@ -616,9 +688,19 @@ export default class OptimaScene {
       const c = sig ? [1, 1, 1] : cols[(Math.random() * cols.length) | 0]
       colA[j] = c[0]; colA[j + 1] = c[1]; colA[j + 2] = c[2]
     }
+    // Portrait targets (morph stage 3): filled from the mask image once it
+    // loads; until then particles would morph onto the crystal shape.
+    const port = new Float32Array(N * 4)
+    for (let i = 0; i < N; i++) {
+      port[i * 4] = knot[i * 3]
+      port[i * 4 + 1] = knot[i * 3 + 1]
+      port[i * 4 + 2] = knot[i * 3 + 2]
+      port[i * 4 + 3] = 0.55
+    }
     const geom = new THREE.BufferGeometry()
     geom.setAttribute('position', new THREE.BufferAttribute(sph, 3))
     geom.setAttribute('aKnot', new THREE.BufferAttribute(knot, 3))
+    geom.setAttribute('aPort', new THREE.BufferAttribute(port, 4))
     geom.setAttribute('aNetA', new THREE.BufferAttribute(netA, 3))
     geom.setAttribute('aNetB', new THREE.BufferAttribute(netB, 3))
     geom.setAttribute('aNetC', new THREE.BufferAttribute(netC, 3))
@@ -632,7 +714,7 @@ export default class OptimaScene {
       },
       vertexShader: [
         'uniform float uTime; uniform float uMorph; uniform float uFlow; uniform float uIntro; uniform float uPR;',
-        'attribute vec3 aKnot; attribute vec3 aNetA; attribute vec3 aNetB; attribute vec3 aNetC; attribute vec3 aCol;',
+        'attribute vec3 aKnot; attribute vec4 aPort; attribute vec3 aNetA; attribute vec3 aNetB; attribute vec3 aNetC; attribute vec3 aCol;',
         'attribute vec2 aFlowD; attribute vec2 aMisc;',
         'varying vec3 vCol; varying float vA;',
         'float ss(float x){ x = clamp(x, 0.0, 1.0); return x*x*(3.0-2.0*x); }',
@@ -642,23 +724,29 @@ export default class OptimaScene {
         '  vec3 net = u*u*aNetA + 2.0*u*fr*aNetC + fr*fr*aNetB;',
         '  vec3 p;',
         '  if (uMorph <= 1.0) p = mix(net, position, ss(uMorph));',
-        '  else p = mix(position, aKnot, ss(uMorph - 1.0));',
+        '  else if (uMorph <= 2.0) p = mix(position, aKnot, ss(uMorph - 1.0));',
+        '  else p = mix(aKnot, aPort.xyz, ss(uMorph - 2.0));',
         '  float sphW = ss(uMorph) * (1.0 - ss(uMorph - 1.0));',
-        '  float solidW = ss(uMorph - 1.0);',
+        '  float portW = ss(uMorph - 2.0);',
+        '  float solidW = ss(uMorph - 1.0) * (1.0 - portW);',
         '  float seed = aMisc.x;',
         '  float sw = sphW * 0.16 * sin(uTime*0.28 + p.y*2.2 + seed*0.9);',
         '  float cs = cos(sw); float sn = sin(sw);',
         '  p.xz = mat2(cs, -sn, sn, cs) * p.xz;',
         '  p += normalize(p + vec3(1e-4)) * (0.05 * sphW * sin(uTime*0.6 + seed*38.0));',
-        '  p += 0.025 * vec3(sin(uTime*0.7+seed*40.0), cos(uTime*0.55+seed*70.0), sin(uTime*0.85+seed*55.0));',
+        // portrait must stay crisp — only a faint breathing remains
+        '  p += 0.025 * (1.0 - portW * 0.85) * vec3(sin(uTime*0.7+seed*40.0), cos(uTime*0.55+seed*70.0), sin(uTime*0.85+seed*55.0));',
         '  float ig = ss(uIntro);',
         '  p *= mix(1.7 + seed * 0.6, 1.0, ig);',
         '  vec4 mv = modelViewMatrix * vec4(p, 1.0);',
         '  gl_Position = projectionMatrix * mv;',
         '  float tw = 0.72 + 0.28 * sin(uTime * (1.2 + seed*2.8) + seed*80.0);',
-        '  vA = tw * ig * mix(1.0, step(0.08, aMisc.y) * 0.35, solidW);',
-        '  vCol = aCol;',
-        '  gl_PointSize = aMisc.y * uPR * tw * (1.0 + 0.35 * sphW) * (260.0 / -mv.z);',
+        '  float twP = mix(tw, 0.88 + 0.12 * sin(uTime * (1.2 + seed*2.8) + seed*80.0), portW);',
+        '  float solidFade = mix(1.0, step(0.08, aMisc.y) * 0.35, solidW);',
+        '  vA = twP * ig * mix(solidFade, 0.13 + aPort.w * 0.5, portW);',
+        '  vec3 pcol = mix(vec3(0.3, 0.42, 0.74), vec3(0.95, 0.97, 1.05), aPort.w);',
+        '  vCol = mix(aCol, pcol, portW);',
+        '  gl_PointSize = aMisc.y * uPR * twP * (1.0 + 0.35 * sphW) * mix(1.0, 0.5 + aPort.w * 0.85, portW) * (260.0 / -mv.z);',
         '}',
       ].join('\n'),
       fragmentShader: [
@@ -678,6 +766,8 @@ export default class OptimaScene {
     this.points = new THREE.Points(geom, this.pMat)
     this.points.frustumCulled = false
     this.spinner.add(this.points)
+    // degrade() rebuilds the cloud after the mask may already be loaded
+    this._setPortraitTargets()
   }
 
   _buildKnotMesh() {
@@ -818,8 +908,10 @@ export default class OptimaScene {
       this.netCoresA.material.size = 0.44 + 0.04 * Math.sin(time * 1.9)
       this.netCoresB.material.opacity = netW * (0.24 + 0.05 * Math.sin(time * 2.6 + 1.3))
     }
+    const portW = smooth(clamp01(p - 2))
     if (this.knotMesh) {
-      const kr = smooth(clamp01(p - 1))
+      // crystal dissolves as the particles leave it for the portrait
+      const kr = smooth(clamp01(p - 1)) * (1 - portW)
       this.knotMesh.visible = kr > 0.02
       this.knotMat.uniforms.uOp.value = kr
       this.knotMat.uniforms.uTime.value = time
@@ -834,9 +926,10 @@ export default class OptimaScene {
       }
     }
     const spd = this.opts.rotationSpeed
-    if (netW > 0.5) {
+    if (netW > 0.5 || portW > 0.05) {
+      // net and portrait stages must face the camera squarely
       const tgt = Math.round(this.spinner.rotation.y / (Math.PI * 2)) * Math.PI * 2
-      this.spinner.rotation.y += (tgt - this.spinner.rotation.y) * 0.06
+      this.spinner.rotation.y += (tgt - this.spinner.rotation.y) * (0.06 + portW * 0.06)
     } else {
       this.spinner.rotation.y += 0.0016 * spd * (1 - netW)
     }
@@ -887,8 +980,9 @@ export default class OptimaScene {
       this.camera.updateProjectionMatrix()
     }
 
-    // terrain reveal (only once the net has dissolved)
-    const tw = s.intro * (1 - netW)
+    // terrain reveal (only once the net has dissolved); dims while the
+    // portrait forms so the figure owns the frame
+    const tw = s.intro * (1 - netW) * (1 - portW * 0.55)
     if (this.terrMat) {
       this.terrain.visible = tw > 0.01
       this.terrMat.uniforms.uTime.value = time

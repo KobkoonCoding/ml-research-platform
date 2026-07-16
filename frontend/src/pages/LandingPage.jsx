@@ -4,7 +4,6 @@ import { useTheme } from '../context/ThemeContext'
 import SEO from '../components/SEO'
 import useLandingEngine from '../components/landing/v2/useLandingEngine'
 import ModuleModal from '../components/landing/v2/ModuleModal'
-import ParticlePortrait from '../components/landing/v2/ParticlePortrait'
 import { DEVELOPER_PROFILE } from '../lib/developerData'
 import '../components/landing/v2/landing-v2.css'
 
@@ -89,7 +88,7 @@ const LANDING_JSON_LD = {
    CONTENT
    ══════════════════════════════════════════════════════════════ */
 
-const SECTION_IDS = ['hero', 'clean', 'train', 'try', 'gallery', 'developer', 'cta']
+const SECTION_IDS = ['hero', 'clean', 'train', 'try', 'gallery', 'cta', 'developer']
 
 const DOTS = [
   { target: 'hero', title: 'Intro' },
@@ -97,8 +96,8 @@ const DOTS = [
   { target: 'train', title: 'Train' },
   { target: 'try', title: 'Try' },
   { target: 'gallery', title: 'Showcase' },
-  { target: 'developer', title: 'Developer' },
   { target: 'cta', title: 'Start' },
+  { target: 'developer', title: 'Developer' },
 ]
 
 const TICKER_WORDS = ['Clean', 'Train', 'Try', 'Descend', 'Converge', 'Predict']
@@ -960,23 +959,53 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ═══ MEET THE DEVELOPER ═══ */}
-      <section id="developer" style={moduleSectionStyle}>
-        <div style={{ ...moduleGridStyle, alignItems: 'center' }}>
-          <div data-reveal style={{ display: 'flex', justifyContent: 'center' }}>
-            <div style={{ position: 'relative', width: 'min(360px,78vw)' }}>
-              {/* soft halo behind the particles */}
-              <div
-                style={{
-                  position: 'absolute', inset: '-18%', pointerEvents: 'none',
-                  background: 'radial-gradient(circle at 50% 42%, rgba(109,168,255,0.14), transparent 65%)',
-                }}
-              />
-              <ParticlePortrait />
-            </div>
+      {/* ═══ CTA ═══ */}
+      <section id="cta" style={{ position: 'relative', zIndex: 2, padding: 'clamp(120px,22vh,260px) clamp(20px,7vw,120px)', textAlign: 'center' }}>
+        <div data-reveal style={{ maxWidth: 1000, margin: '0 auto' }}>
+          <div className="lv2-label" style={{ marginBottom: 32 }}>08 — Converge · Research platform</div>
+          <h2
+            className="lv2-serif"
+            style={{ fontWeight: 200, fontSize: 'clamp(2.8rem,9vw,7.5rem)', lineHeight: 0.94, letterSpacing: '-0.03em' }}
+          >
+            Ready to <span className="lv2-gradient-text">compile?</span>
+          </h2>
+          <p
+            style={{
+              color: '#c6cddc', maxWidth: '44ch', margin: '30px auto 0',
+              fontSize: 'clamp(15px,1.3vw,18px)', lineHeight: 1.65,
+            }}
+          >
+            From raw data to trained models to live predictions — no code required.
+            Pick a module and start your research workflow.
+          </p>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 46, flexWrap: 'wrap' }}>
+            <button
+              data-magnet
+              onClick={() => setModalOpen(true)}
+              className="lv2-pill-solid"
+              style={{ padding: '15px 34px', fontSize: 15, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              Initialize System
+            </button>
+            <Link to="/deep-learning" data-magnet className="lv2-pill" style={{ padding: '15px 34px', fontSize: 15 }}>
+              Try AI Models
+            </Link>
           </div>
-          <div data-reveal style={moduleTextPanelStyle}>
-            <div data-plx="0.1" className="lv2-serif" style={ghostNumStyle}>08</div>
+        </div>
+      </section>
+
+      {/* ═══ MEET THE DEVELOPER — the particles' final form ═══ */}
+      <section
+        id="developer"
+        style={{
+          position: 'relative', zIndex: 2, minHeight: '115vh',
+          display: 'flex', flexDirection: 'column', justifyContent: 'center',
+          padding: 'clamp(70px,10vh,130px) clamp(20px,7vw,120px) 0',
+        }}
+      >
+        <div style={{ ...moduleGridStyle, width: '100%', alignItems: 'center' }}>
+          <div data-reveal style={{ ...moduleTextPanelStyle, maxWidth: 560 }}>
+            <div data-plx="0.1" className="lv2-serif" style={ghostNumStyle}>09</div>
             <div className="lv2-label" style={{ marginTop: 16 }}>The researcher</div>
             <h3 className="lv2-serif" style={{ ...moduleH3Style, marginTop: 14 }}>{DEVELOPER_PROFILE.name}</h3>
             <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -1006,41 +1035,10 @@ export default function LandingPage() {
               })}
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* ═══ CTA + FOOTER ═══ */}
-      <section id="cta" style={{ position: 'relative', zIndex: 2, padding: 'clamp(120px,22vh,260px) clamp(20px,7vw,120px)', textAlign: 'center' }}>
-        <div data-reveal style={{ maxWidth: 1000, margin: '0 auto' }}>
-          <div className="lv2-label" style={{ marginBottom: 32 }}>09 — Converge · Research platform</div>
-          <h2
-            className="lv2-serif"
-            style={{ fontWeight: 200, fontSize: 'clamp(2.8rem,9vw,7.5rem)', lineHeight: 0.94, letterSpacing: '-0.03em' }}
-          >
-            Ready to <span className="lv2-gradient-text">compile?</span>
-          </h2>
-          <p
-            style={{
-              color: '#c6cddc', maxWidth: '44ch', margin: '30px auto 0',
-              fontSize: 'clamp(15px,1.3vw,18px)', lineHeight: 1.65,
-            }}
-          >
-            From raw data to trained models to live predictions — no code required.
-            Pick a module and start your research workflow.
-          </p>
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 46, flexWrap: 'wrap' }}>
-            <button
-              data-magnet
-              onClick={() => setModalOpen(true)}
-              className="lv2-pill-solid"
-              style={{ padding: '15px 34px', fontSize: 15, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
-            >
-              Initialize System
-            </button>
-            <Link to="/deep-learning" data-magnet className="lv2-pill" style={{ padding: '15px 34px', fontSize: 15 }}>
-              Try AI Models
-            </Link>
-          </div>
+          {/* Right half stays empty — the WebGL particles assemble into the
+              developer's 3D portrait here (morph stage 3). On small screens
+              this spacer keeps the portrait visible below the panel. */}
+          <div aria-hidden style={{ minHeight: '46vh' }} />
         </div>
         <footer
           style={{

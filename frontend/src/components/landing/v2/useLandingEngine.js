@@ -203,6 +203,7 @@ export default function useLandingEngine({ sectionIds }) {
     const tilts = [...root.querySelectorAll('[data-tilt]')].map((el) => ({ el, rx: 0, ry: 0, on: false }))
     const dotEls = [...root.querySelectorAll('[data-dot]')]
     const secEls = sectionIds.map((id) => root.querySelector('#' + id))
+    const devEl = root.querySelector('#developer')
     const plxEls = [...root.querySelectorAll('[data-plx]')]
     const heroSteps = [...root.querySelectorAll('[data-hero-step]')].map((el) => ({ el, kids: [...el.children] }))
 
@@ -293,7 +294,7 @@ export default function useLandingEngine({ sectionIds }) {
         const r = hw.getBoundingClientRect()
         const total = hw.offsetHeight - vh
         const p = clamp01(-r.top / Math.max(1, total))
-        S.targetMorph = smooth(ramp(p, MORPH_1[0], MORPH_1[1])) + smooth(ramp(p, MORPH_2[0], MORPH_2[1]))
+        S.baseMorph = smooth(ramp(p, MORPH_1[0], MORPH_1[1])) + smooth(ramp(p, MORPH_2[0], MORPH_2[1]))
         heroSteps.forEach((st, i) => {
           const seg = HERO_SEGMENTS[i] || HERO_SEGMENTS[HERO_SEGMENTS.length - 1]
           const [a, b] = seg.range
@@ -350,6 +351,20 @@ export default function useLandingEngine({ sectionIds }) {
           shiftX = -seg.side * 0.75 * env
         })
         S.shiftX = shiftX
+      }
+
+      // morph stage 3: crystal → developer portrait as the last section
+      // scrolls in. The portrait slides right so the text panel owns the
+      // left half (scaled down on narrow screens).
+      let m3 = 0
+      if (devEl) {
+        const r = devEl.getBoundingClientRect()
+        m3 = smooth(clamp01((vh * 0.92 - r.top) / (vh * 0.8)))
+      }
+      S.targetMorph = (S.baseMorph || 0) + m3
+      if (m3 > 0.01) {
+        const aspX = Math.min(1, window.innerWidth / Math.max(1, window.innerHeight) / 1.5)
+        S.shiftX = 0.6 * m3 * aspX
       }
 
       // loss curve scrub
