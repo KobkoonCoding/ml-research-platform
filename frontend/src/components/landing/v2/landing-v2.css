@@ -224,57 +224,49 @@
   transform: translateX(7px);
 }
 
-.lv2-float {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: min(320px, 30vw);
-  aspect-ratio: 4 / 3;
-  border-radius: 14px;
-  overflow: hidden;
-  pointer-events: none;
-  z-index: 120;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.75);
-  opacity: 0;
-  transition: opacity 0.3s;
-  background: #0b0d14;
+/* Two small always-visible sample inputs beside the showcase heading */
+.lv2-samples {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  flex: 0 0 auto;
+  padding-right: clamp(0px, 2vw, 24px);
 }
 
-.lv2-float img {
-  position: absolute;
-  inset: 0;
+.lv2-sample {
+  position: relative;
+  width: clamp(120px, 13vw, 180px);
+  aspect-ratio: 4 / 5;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 24px 60px -18px rgba(0, 0, 0, 0.7);
+  background: #0b0d14;
+  margin: 0;
+  transition: transform 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.lv2-sample:hover {
+  transform: rotate(0deg) translateY(-6px) scale(1.04) !important;
+}
+
+.lv2-sample img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0;
-  transition: opacity 0.4s, transform 0.7s;
-  transform: scale(1.06);
   filter: saturate(0.85) contrast(1.04) brightness(0.92);
 }
 
-.lv2-float img.lv2-float-on {
-  opacity: 1;
-  transform: scale(1);
-}
-
-.lv2-float-tag {
+.lv2-sample figcaption {
   position: absolute;
-  bottom: 10px;
-  left: 10px;
+  bottom: 8px;
+  left: 8px;
   font-family: ui-monospace, monospace;
-  font-size: 11px;
+  font-size: 10.5px;
   color: #b6bdcc;
   background: rgba(6, 7, 12, 0.7);
-  padding: 4px 8px;
-  border-radius: 6px;
-  z-index: 1;
-}
-
-@media (pointer: coarse), (max-width: 760px) {
-  .lv2-float {
-    display: none;
-  }
+  padding: 3px 7px;
+  border-radius: 5px;
 }
 
 @media (max-width: 900px) {

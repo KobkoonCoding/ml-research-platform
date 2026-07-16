@@ -269,74 +269,52 @@ function TickerGroup() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   SHOWCASE INDEX — model list with a cursor-following preview.
-   Isolated component so hover state re-renders only this section.
+   SHOWCASE INDEX — model list, with two small always-visible sample
+   images (X-ray + MRI) beside the heading.
    ══════════════════════════════════════════════════════════════ */
 
 function ShowcaseIndex() {
-  const [active, setActive] = useState(-1)
-  const floatRef = useRef(null)
-  const pos = useRef({ x: 0, y: 0, tx: 0, ty: 0, snap: true })
-
-  // Smooth cursor-follow via rAF lerp (no React re-render per mousemove)
-  useEffect(() => {
-    let raf = 0
-    const tick = () => {
-      const p = pos.current
-      p.x += (p.tx - p.x) * 0.16
-      p.y += (p.ty - p.y) * 0.16
-      if (floatRef.current) {
-        floatRef.current.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -112%)`
-      }
-      raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [])
-
-  const onMove = (e) => {
-    const p = pos.current
-    p.tx = e.clientX
-    p.ty = e.clientY
-    if (p.snap) {
-      p.x = p.tx
-      p.y = p.ty
-      p.snap = false
-    }
-  }
-
   return (
     <section
       id="gallery"
-      onMouseMove={onMove}
-      onMouseLeave={() => {
-        setActive(-1)
-        pos.current.snap = true
-      }}
       style={{ position: 'relative', zIndex: 2, padding: 'clamp(90px,14vh,170px) clamp(20px,7vw,120px)' }}
     >
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-        <div data-reveal>
-          <div className="lv2-label" style={{ marginBottom: 22 }}>07 — Showcase</div>
-          <h2
-            className="lv2-serif"
-            style={{ fontWeight: 200, fontSize: 'clamp(2.2rem,4.6vw,4.2rem)', lineHeight: 1, letterSpacing: '-0.025em' }}
-          >
-            Optimized in the <span style={{ fontStyle: 'italic' }}>wild.</span>
-          </h2>
-          <p style={{ color: '#aab3c5', marginTop: 18, fontSize: 15, lineHeight: 1.6, maxWidth: '52ch' }}>
-            Eight live models across vision, medical imaging, and detection —
-            hover a model to preview it, click to try it yourself.
-          </p>
+        <div
+          data-reveal
+          style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            gap: 'clamp(28px,4vw,64px)', flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ flex: '1 1 380px', minWidth: 280 }}>
+            <div className="lv2-label" style={{ marginBottom: 22 }}>07 — Showcase</div>
+            <h2
+              className="lv2-serif"
+              style={{ fontWeight: 200, fontSize: 'clamp(2.2rem,4.6vw,4.2rem)', lineHeight: 1, letterSpacing: '-0.025em' }}
+            >
+              Optimized in the <span style={{ fontStyle: 'italic' }}>wild.</span>
+            </h2>
+            <p style={{ color: '#aab3c5', marginTop: 18, fontSize: 15, lineHeight: 1.6, maxWidth: '52ch' }}>
+              Eight live models across vision, medical imaging, and detection —
+              pick one and try it with your own image.
+            </p>
+          </div>
+          {/* sample inputs — always visible */}
+          <div className="lv2-samples" aria-hidden>
+            <figure className="lv2-sample" style={{ transform: 'rotate(-4deg)' }}>
+              <img src="/samples/xray-pneumonia.jpg" alt="" loading="lazy" />
+              <figcaption>xray.img</figcaption>
+            </figure>
+            <figure className="lv2-sample" style={{ transform: 'rotate(4.5deg) translateY(14px)' }}>
+              <img src="/samples/brain-glioma.jpg" alt="" loading="lazy" />
+              <figcaption>mri.img</figcaption>
+            </figure>
+          </div>
         </div>
         <div data-reveal className="lv2-index" style={{ marginTop: 46 }}>
           {GALLERY_CARDS.map((card, i) => (
-            <Link
-              key={card.tag}
-              to="/deep-learning"
-              className="lv2-row"
-              onMouseEnter={() => setActive(i)}
-            >
+            <Link key={card.tag} to="/deep-learning" className="lv2-row">
               <span className="lv2-row-num">{String(i + 1).padStart(2, '0')}</span>
               <span className="lv2-row-title lv2-serif">{card.title}</span>
               <span className="lv2-row-meta">{card.desc}</span>
@@ -344,20 +322,6 @@ function ShowcaseIndex() {
             </Link>
           ))}
         </div>
-      </div>
-
-      {/* cursor-following preview (hidden on touch / small screens) */}
-      <div ref={floatRef} className="lv2-float" style={{ opacity: active >= 0 ? 1 : 0 }}>
-        {GALLERY_CARDS.map((card, i) => (
-          <img
-            key={card.tag}
-            src={card.img}
-            alt=""
-            loading="lazy"
-            className={i === active ? 'lv2-float-on' : undefined}
-          />
-        ))}
-        <span className="lv2-float-tag">{active >= 0 ? GALLERY_CARDS[active].tag : ''}</span>
       </div>
     </section>
   )
