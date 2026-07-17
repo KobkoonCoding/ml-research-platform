@@ -883,7 +883,7 @@ export default class OptimaScene {
         '  aStage = mix(aStage, 0.55 * tessGlow, tessW);',
         '  aStage = mix(aStage, 0.5 * coreGlow, coreW);',
         '  aStage = mix(aStage, 0.4 + 0.26 * sweep, wordW);',
-        '  float portA = 0.09 + aPort.w * 0.34;',
+        '  float portA = 0.07 + aPort.w * 0.22;',
         '  vA = twP * ig * mix(aStage, portA, portW);',
         '  vA *= 1.0 - netStageW * hideHalf;',
         '  float sizeStage = 1.0 + 0.35 * sphW + (0.25 * tessGlow) * tessW + (0.2 * coreGlow) * coreW + 0.1 * wordW;',
@@ -958,25 +958,12 @@ export default class OptimaScene {
    */
   _loadPortrait() {
     const img = new Image()
-    const imgDepth = new Image()
-    let pending = 2
-    let depthOk = true
-    const ready = () => {
-      if (--pending > 0) return
-      this._buildPortraitPts(img, depthOk ? imgDepth : null)
-    }
-    img.onload = ready
-    imgDepth.onload = ready
-    imgDepth.onerror = () => {
-      depthOk = false
-      ready()
-    }
+    img.onload = () => this._buildPortraitPts(img)
     img.src = '/dev-portrait.png'
-    imgDepth.src = '/dev-portrait-depth.png'
   }
 
-  /** Sample the color + depth rasters into weighted 3D portrait points. */
-  _buildPortraitPts(img, imgDepth) {
+  /** Sample the color raster into weighted portrait points. */
+  _buildPortraitPts(img) {
     {
       if (!this.renderer) return
       const iw = img.naturalWidth
@@ -987,15 +974,6 @@ export default class OptimaScene {
       const c2 = cv.getContext('2d')
       c2.drawImage(img, 0, 0)
       const data = c2.getImageData(0, 0, iw, ih).data
-      let depthData = null
-      if (imgDepth) {
-        const dv = document.createElement('canvas')
-        dv.width = iw
-        dv.height = ih
-        const d2 = dv.getContext('2d')
-        d2.drawImage(imgDepth, 0, 0, iw, ih)
-        depthData = d2.getImageData(0, 0, iw, ih).data
-      }
       const alphaAt = (x, y) => {
         if (x < 0 || y < 0 || x >= iw || y >= ih) return 0
         return data[(y * iw + x) * 4 + 3]
@@ -1019,11 +997,7 @@ export default class OptimaScene {
           if (y > ih * 0.88) lum *= 0.35 + 0.65 * ((ih - y) / (ih * 0.12))
           const px = (x - iw / 2) * scale
           const py = (ih / 2 - y) * scale + 0.55
-          // z from the baked inflation depth map → a real bas-relief bust;
-          // falls back to a luminance relief if the depth asset is missing
-          const pz = depthData
-            ? (depthData[i] / 255 - 0.35) * 0.9
-            : (lum - 0.45) * 0.32
+          const pz = (lum - 0.45) * 0.32
           // brighter pixels get extra copies → face stays dense
           const copies = 1 + Math.round(lum * 2)
           for (let k = 0; k < copies; k++) pts.push(px, py, pz, lum, r, g, b)
@@ -1077,7 +1051,7 @@ export default class OptimaScene {
       // generous depth jitter fills the bust as a volume, not a sheet
       tgt[i * 4] = src[s] + (Math.random() - 0.5) * 0.015
       tgt[i * 4 + 1] = src[s + 1] + (Math.random() - 0.5) * 0.015
-      tgt[i * 4 + 2] = src[s + 2] + (Math.random() - 0.5) * 0.07
+      tgt[i * 4 + 2] = src[s + 2] + (Math.random() - 0.5) * 0.16
       tgt[i * 4 + 3] = src[s + 3]
       col[i * 3] = src[s + 4]
       col[i * 3 + 1] = src[s + 5]
@@ -1131,9 +1105,11 @@ export default class OptimaScene {
         '  vec4 mv = modelViewMatrix * vec4(p, 1.0);',
         '  gl_Position = projectionMatrix * mv;',
         '  float tw = 0.85 + 0.15 * sin(uTime * (1.0 + aSeed.x * 2.0) + aSeed.y * 80.0);',
-        '  vA = e * uPortW * tw * (0.09 + aTgt.w * 0.33);',
-        '  vCol = aColor * (0.55 + aTgt.w * 0.55);',
-        '  gl_PointSize = (0.024 + aTgt.w * 0.036) * uPR * uVh * tw * (260.0 / -mv.z);',
+        // dense stack of 60k additive points saturates fast — keep each
+        // point faint so the mass reads near-solid without burning white
+        '  vA = e * uPortW * tw * (0.075 + aTgt.w * 0.2);',
+        '  vCol = aColor * (0.5 + aTgt.w * 0.42);',
+        '  gl_PointSize = (0.028 + aTgt.w * 0.042) * uPR * uVh * tw * (260.0 / -mv.z);',
         '}',
       ].join('\n'),
       fragmentShader: [
@@ -1246,8 +1222,9 @@ export default class OptimaScene {
       stageChanged = true
     }
     this.pulse = (this.pulse || 0) * (s.snap ? 0 : 0.955)
-    // net gets extra bloom, everything after runs cooler
-    if (this.bloom) this.bloom.strength = 0.46 + this.pulse * 0.6 + portW * 0.12 + netW * 0.38
+    // net gets extra bloom, everything after runs cooler; the portrait
+    // relies on density, not glow, so it gets no bloom lift at all
+    if (this.bloom) this.bloom.strength = 0.46 + this.pulse * 0.6 + netW * 0.38
     if (this.gradePass) {
       this.gradePass.uniforms.uTime.value = time
       this.gradePass.uniforms.uCA.value = 1 + this.pulse * 7 + Math.min(3, Math.abs(s.velS) * 0.5)
@@ -1310,11 +1287,9 @@ export default class OptimaScene {
 
     const spd = this.opts.rotationSpeed
     if (netW > 0.5 || wordW > 0.25 || portW > 0.05) {
-      // net and wordmark face the camera squarely; the portrait sways
-      // gently like a rotating sculpture (its depth map sells the 3D)
-      const base = Math.round(this.spinner.rotation.y / (Math.PI * 2)) * Math.PI * 2
-      const sway = Math.sin(time * 0.24) * 0.34 * portW
-      this.spinner.rotation.y += (base + sway - this.spinner.rotation.y) * (0.06 + (wordW + portW) * 0.06)
+      // net, wordmark, and portrait stages face the camera squarely
+      const tgt = Math.round(this.spinner.rotation.y / (Math.PI * 2)) * Math.PI * 2
+      this.spinner.rotation.y += (tgt - this.spinner.rotation.y) * (0.06 + (wordW + portW) * 0.06)
     } else {
       this.spinner.rotation.y += 0.0016 * spd * (1 - netW)
     }
