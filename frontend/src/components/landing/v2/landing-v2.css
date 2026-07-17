@@ -322,36 +322,6 @@
   }
 }
 
-/* ── Scrims vs cards ─────────────────────────────────────────
-   A glass panel used to sit behind every block, so nothing led the eye,
-   and heavy text-shadows admitted the scene was winning the fight. Now
-   the glass card means exactly one thing — "this is a screen/device"
-   (the CSV table, the prediction panel, the modal) — while statement
-   text dims the scene locally with an edgeless scrim instead. Same
-   readability, no box competing for attention. */
-/* Stops are tuned so the scrim stays ~0.84+ across the whole text box and
-   only falls off outside it: at --scrim-x 86%, the far edge of the box
-   sits ~61% along the gradient, which lands between the 55% and 75%
-   stops. Long lines keep their backdrop; the scene keeps its edges. */
-.lv2-scrim {
-  --scrim-x: 50%;
-  background: radial-gradient(
-    ellipse 140% 132% at var(--scrim-x) 50%,
-    rgba(6, 7, 12, 0.94) 0%,
-    rgba(6, 7, 12, 0.9) 55%,
-    rgba(6, 7, 12, 0.7) 75%,
-    transparent 100%
-  );
-}
-
-.lv2-scrim-right {
-  --scrim-x: 86%;
-}
-
-.lv2-scrim-left {
-  --scrim-x: 14%;
-}
-
 /* ── Pinned scroll-story heights ──────────────────────────────
    Two declarations each: browsers without dvh keep the vh value, newer
    ones take dvh so the mobile URL bar can't resize the story mid-scroll.
