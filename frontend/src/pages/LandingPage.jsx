@@ -555,7 +555,7 @@ export default function LandingPage() {
         <a
           href="#hero"
           onClick={(e) => handleAnchor(e, 'hero')}
-          className="lv2-serif"
+          className="lv2-serif lv2-logo"
           aria-hidden={drawerOpen || undefined}
           tabIndex={drawerOpen ? -1 : undefined}
           style={{
@@ -829,6 +829,7 @@ export default function LandingPage() {
         </div>
         <Link
           to="/about"
+          className="lv2-story-link"
           style={{ display: 'inline-block', marginTop: 42, fontSize: 'var(--lv2-fs-4)', color: 'var(--lv2-accent-hi)', letterSpacing: '0.04em' }}
         >
           Read the full story →

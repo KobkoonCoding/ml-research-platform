@@ -316,7 +316,7 @@
   animation: lv2-drawer-item 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 760px), (pointer: coarse) {
   .lv2-burger {
     display: flex;
   }
@@ -356,7 +356,7 @@
    Most visitors arrive here, so this isn't a compressed desktop:
    the pinned story is shorter (4 swipes -> ~2.6) and the smallest
    type steps up. */
-@media (max-width: 760px) {
+@media (max-width: 760px), (pointer: coarse) {
   .landing-v2 {
     --lv2-fs-1: 12px;
     --lv2-fs-2: 13px;
@@ -638,6 +638,23 @@
   .landing-v2 [data-cursor] {
     display: none !important;
   }
+  /* The dot rail names its sections on hover, which a finger never does —
+     unlabelled dots aren't navigation. The drawer covers this properly. */
+  .landing-v2 [data-dots] {
+    display: none !important;
+  }
+  /* 44px targets: fingers, not cursors. The row links set their own
+     generous padding, so they're left alone. */
+  .lv2-pill,
+  .lv2-pill-solid,
+  .lv2-story-link,
+  .lv2-logo,
+  .landing-v2 footer a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
   .landing-v2 [data-grain] {
     display: none !important;
   }
@@ -685,13 +702,19 @@
 }
 
 /* Small screens: drop desktop nav links + section dots, shrink hero cards */
-@media (max-width: 760px) {
+@media (max-width: 760px), (pointer: coarse) {
   .landing-v2 [data-nav-desktop] {
     display: none !important;
   }
   .landing-v2 [data-hero-step] {
     max-width: 88vw !important;
     padding: 20px !important;
+    /* The intro step is anchored left:0/right:0, so capping its width left
+       it hugging the left edge and its centred text sat 26px off-centre.
+       Auto margins re-centre an over-constrained absolute box; the side
+       steps anchor to one edge only, so this doesn't touch them. */
+    margin-left: auto !important;
+    margin-right: auto !important;
   }
   .landing-v2 [data-dots] {
     display: none !important;
