@@ -22,6 +22,11 @@
   --lv2-accent-warm: #ffd9a8;
   --lv2-surface: #0b0d14;
 
+  /* Three families, all declared: Fraunces (display serif, .lv2-serif),
+     Manrope (body, set on this root), and mono for machine voice —
+     filenames, confidence values, dataset captions. */
+  --lv2-mono: ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
+
   --lv2-fs-1: 11px; /* tracked labels, mono micro */
   --lv2-fs-2: 12.5px; /* mono captions, nav */
   --lv2-fs-3: 13.5px; /* small UI text */
@@ -281,7 +286,7 @@
 }
 
 .lv2-drawer-num {
-  font-family: ui-monospace, monospace;
+  font-family: var(--lv2-mono);
   font-size: var(--lv2-fs-2);
   letter-spacing: 0.1em;
   color: var(--lv2-accent);
@@ -301,7 +306,7 @@
 }
 
 .lv2-drawer-foot {
-  font-family: ui-monospace, monospace;
+  font-family: var(--lv2-mono);
   font-size: var(--lv2-fs-1);
   letter-spacing: 0.3em;
   text-transform: uppercase;
@@ -315,6 +320,36 @@
   .lv2-burger {
     display: flex;
   }
+}
+
+/* ── Scrims vs cards ─────────────────────────────────────────
+   A glass panel used to sit behind every block, so nothing led the eye,
+   and heavy text-shadows admitted the scene was winning the fight. Now
+   the glass card means exactly one thing — "this is a screen/device"
+   (the CSV table, the prediction panel, the modal) — while statement
+   text dims the scene locally with an edgeless scrim instead. Same
+   readability, no box competing for attention. */
+/* Stops are tuned so the scrim stays ~0.84+ across the whole text box and
+   only falls off outside it: at --scrim-x 86%, the far edge of the box
+   sits ~61% along the gradient, which lands between the 55% and 75%
+   stops. Long lines keep their backdrop; the scene keeps its edges. */
+.lv2-scrim {
+  --scrim-x: 50%;
+  background: radial-gradient(
+    ellipse 140% 132% at var(--scrim-x) 50%,
+    rgba(6, 7, 12, 0.94) 0%,
+    rgba(6, 7, 12, 0.9) 55%,
+    rgba(6, 7, 12, 0.7) 75%,
+    transparent 100%
+  );
+}
+
+.lv2-scrim-right {
+  --scrim-x: 86%;
+}
+
+.lv2-scrim-left {
+  --scrim-x: 14%;
 }
 
 /* ── Pinned scroll-story heights ──────────────────────────────
@@ -432,7 +467,7 @@
   bottom: 24px;
   right: clamp(20px, 4vw, 52px);
   z-index: 118;
-  font-family: ui-monospace, monospace;
+  font-family: var(--lv2-mono);
   font-size: var(--lv2-fs-1);
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -486,7 +521,7 @@
 }
 
 .lv2-row-num {
-  font-family: ui-monospace, monospace;
+  font-family: var(--lv2-mono);
   font-size: var(--lv2-fs-2);
   color: var(--lv2-accent);
 }
@@ -553,7 +588,7 @@
   position: absolute;
   bottom: 8px;
   left: 8px;
-  font-family: ui-monospace, monospace;
+  font-family: var(--lv2-mono);
   font-size: var(--lv2-fs-1);
   color: var(--lv2-ink-3);
   background: rgba(6, 7, 12, 0.7);

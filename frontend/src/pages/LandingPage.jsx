@@ -103,45 +103,26 @@ const DOTS = [
 
 const TICKER_WORDS = ['Clean', 'Train', 'Try', 'Descend', 'Converge', 'Predict']
 
-const GALLERY_CARDS = [
-  {
-    img: '/samples/xray-pneumonia.jpg', tag: 'xray.img',
-    title: 'Chest X-ray screening', desc: 'DenseNet-121 with Grad-CAM attention.',
-  },
-  {
-    img: '/samples/brain-glioma.jpg', tag: 'mri.img',
-    title: 'Brain tumor MRI', desc: 'Vision Transformer with attention rollout.',
-  },
-  {
-    img: '/samples/pose-group.jpg', tag: 'detect.img',
-    title: 'Object detection', desc: 'YOLOv8 across 80 everyday classes.',
-  },
-  {
-    img: '/samples/cat.jpg', tag: 'imagenet.img',
-    title: 'General image classification', desc: 'ImageNet-1k, EfficientNetV2 backbone.',
-  },
-  {
-    img: '/samples/pizza.jpg', tag: 'food.img',
-    title: 'Food-101 recognition', desc: '101 dishes, fine-tuned EfficientNet.',
-  },
-  {
-    img: '/samples/peacock.jpg', tag: 'birds.img',
-    title: 'Birds-525 classification', desc: '525 species at fine-grained detail.',
-  },
-  {
-    img: '/samples/zebra.jpg', tag: 'animals.img',
-    title: 'Animal detection', desc: 'YOLOv8 tuned for wildlife scenes.',
-  },
-  {
-    img: '/samples/pose-dance.jpg', tag: 'pose.img',
-    title: 'Pose estimation', desc: '17-keypoint skeletons in real time.',
-  },
+// The showcase is a text index — the two sample images beside its heading
+// are chosen separately (see ShowcaseIndex). Each row is just the model.
+const SHOWCASE_MODELS = [
+  { title: 'Chest X-ray screening', desc: 'DenseNet-121 with Grad-CAM attention.' },
+  { title: 'Brain tumor MRI', desc: 'Vision Transformer with attention rollout.' },
+  { title: 'Object detection', desc: 'YOLOv8 across 80 everyday classes.' },
+  { title: 'General image classification', desc: 'ImageNet-1k, EfficientNetV2 backbone.' },
+  { title: 'Food-101 recognition', desc: '101 dishes, fine-tuned EfficientNet.' },
+  { title: 'Birds-525 classification', desc: '525 species at fine-grained detail.' },
+  { title: 'Animal detection', desc: 'YOLOv8 tuned for wildlife scenes.' },
+  { title: 'Pose estimation', desc: '17-keypoint skeletons in real time.' },
 ]
 
 /* ═══════════════════════════════════════════════════════════════
    SHARED STYLE FRAGMENTS (prototype-exact values)
    ══════════════════════════════════════════════════════════════ */
 
+// Hero statements are type on the scene, not cards on the scene: the
+// .lv2-scrim class dims the scene behind them (see landing-v2.css) so the
+// words can lead without a frosted box or 36px of shadow armor.
 const heroCardStyle = (side) => ({
   position: 'absolute',
   ...(side === 'right'
@@ -149,15 +130,9 @@ const heroCardStyle = (side) => ({
     : { left: 'clamp(20px,7vw,110px)', textAlign: 'left', transformOrigin: 'left center' }),
   maxWidth: 'min(560px,52vw)',
   willChange: 'transform,opacity,filter',
-  textShadow: '0 0 36px rgba(4,5,9,0.94),0 2px 12px rgba(4,5,9,0.92)',
+  textShadow: '0 2px 18px rgba(4,5,9,0.8)',
   opacity: 0,
-  padding: 'clamp(26px,3vw,42px)',
-  borderRadius: 28,
-  background: 'rgba(7,9,15,0.38)',
-  border: '1px solid rgba(255,255,255,0.06)',
-  backdropFilter: 'blur(16px) saturate(1.2)',
-  WebkitBackdropFilter: 'blur(16px) saturate(1.2)',
-  boxShadow: '0 30px 80px -30px rgba(0,0,0,0.55)',
+  padding: 'clamp(30px,3.4vw,52px)',
 })
 
 const heroH2Style = {
@@ -216,16 +191,12 @@ const featureListStyle = {
   padding: 0,
 }
 
-// Glass panel behind each module's text column — body copy floats over
-// the 3D scene otherwise and gets hard to read on bright terrain areas.
+// Module copy keeps its readability over bright terrain, but through a
+// scrim rather than a bordered card (see .lv2-scrim): the card treatment
+// is reserved for the two UI mockups, which are meant to read as screens.
 const moduleTextPanelStyle = {
-  padding: 'clamp(22px,2.6vw,36px)',
-  borderRadius: 24,
-  background: 'rgba(7,9,15,0.5)',
-  border: '1px solid rgba(255,255,255,0.06)',
-  backdropFilter: 'blur(14px) saturate(1.15)',
-  WebkitBackdropFilter: 'blur(14px) saturate(1.15)',
-  boxShadow: '0 24px 60px -30px rgba(0,0,0,0.55)',
+  padding: 'clamp(26px,3vw,44px)',
+  marginLeft: 'clamp(-26px,-3vw,-44px)',
 }
 
 function Feature({ children }) {
@@ -314,11 +285,11 @@ function ShowcaseIndex() {
           </div>
         </div>
         <div data-reveal className="lv2-index" style={{ marginTop: 46 }}>
-          {GALLERY_CARDS.map((card, i) => (
-            <Link key={card.tag} to="/deep-learning" className="lv2-row">
+          {SHOWCASE_MODELS.map((m, i) => (
+            <Link key={m.title} to="/deep-learning" className="lv2-row">
               <span className="lv2-row-num">{String(i + 1).padStart(2, '0')}</span>
-              <span className="lv2-row-title lv2-serif">{card.title}</span>
-              <span className="lv2-row-meta">{card.desc}</span>
+              <span className="lv2-row-title lv2-serif">{m.title}</span>
+              <span className="lv2-row-meta">{m.desc}</span>
               <span className="lv2-row-arrow">→</span>
             </Link>
           ))}
@@ -708,7 +679,7 @@ export default function LandingPage() {
               position: 'absolute', inset: 0,
               textAlign: 'center', transformOrigin: 'center center',
               willChange: 'transform,opacity,filter',
-              textShadow: '0 0 44px rgba(4,5,9,0.96),0 2px 14px rgba(4,5,9,0.92)',
+              textShadow: '0 2px 20px rgba(4,5,9,0.85)',
             }}
           >
             <div className="lv2-label lv2-hero-badge" style={{ marginBottom: 18 }}>Where Mathematics Meets Machine Learning</div>
@@ -744,7 +715,7 @@ export default function LandingPage() {
           </div>
 
           {/* Step 1 — raw data */}
-          <div data-hero-step style={{ ...heroCardStyle('right'), bottom: '18%' }}>
+          <div data-hero-step className="lv2-scrim lv2-scrim-right" style={{ ...heroCardStyle('right'), bottom: '18%' }}>
             <div className="lv2-label" style={{ marginBottom: 22 }}>
               <span className="lv2-sr-only">01 — Raw data</span>
               <span data-scramble aria-hidden="true">01 — Raw data</span>
@@ -757,7 +728,7 @@ export default function LandingPage() {
           </div>
 
           {/* Step 2 — optimization */}
-          <div data-hero-step style={{ ...heroCardStyle('left'), top: '22%' }}>
+          <div data-hero-step className="lv2-scrim lv2-scrim-left" style={{ ...heroCardStyle('left'), top: '22%' }}>
             <div className="lv2-label" style={{ marginBottom: 22 }}>
               <span className="lv2-sr-only">02 — Optimization</span>
               <span data-scramble aria-hidden="true">02 — Optimization</span>
@@ -770,7 +741,7 @@ export default function LandingPage() {
           </div>
 
           {/* Step 3 — inference */}
-          <div data-hero-step style={{ ...heroCardStyle('right'), bottom: '20%' }}>
+          <div data-hero-step className="lv2-scrim lv2-scrim-right" style={{ ...heroCardStyle('right'), bottom: '20%' }}>
             <div className="lv2-label" style={{ marginBottom: 22 }}>
               <span className="lv2-sr-only">03 — Inference</span>
               <span data-scramble aria-hidden="true">03 — Inference</span>
@@ -810,12 +781,13 @@ export default function LandingPage() {
       >
         <div className="lv2-label" style={{ color: 'var(--lv2-ink-4)', marginBottom: 46 }}>The thesis</div>
         <p
-          className="lv2-serif"
           style={{
             fontWeight: 200, lineHeight: 1.14, letterSpacing: '-0.02em',
             fontSize: 'clamp(2rem,5.4vw,4.8rem)', maxWidth: '16ch', margin: '0 auto',
-            textShadow: '0 0 40px rgba(4,5,9,0.85),0 2px 14px rgba(4,5,9,0.8)',
+            textShadow: '0 2px 18px rgba(4,5,9,0.8)',
+            padding: 'clamp(20px,3vw,44px)',
           }}
+          className="lv2-serif lv2-scrim"
         >
           <span data-word style={{ display: 'inline-block' }}>Optimization</span>{' '}
           <span data-word style={{ display: 'inline-block' }}>is</span>{' '}
@@ -871,7 +843,7 @@ export default function LandingPage() {
       {/* ═══ MODULE 04 — DATA FORENSIC & CLEANING ═══ */}
       <section id="clean" style={moduleSectionStyle}>
         <div style={moduleGridStyle}>
-          <div data-reveal style={moduleTextPanelStyle}>
+          <div data-reveal className="lv2-scrim lv2-scrim-left" style={moduleTextPanelStyle}>
             <div data-plx="0.1" aria-hidden="true" className="lv2-serif" style={ghostNumStyle}>04</div>
             <h3 className="lv2-serif" style={moduleH3Style}>Data Forensic &amp; Cleaning</h3>
             <p style={moduleParaStyle}>
@@ -900,10 +872,10 @@ export default function LandingPage() {
               <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,255,255,0.15)' }} />
               <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,255,255,0.15)' }} />
               <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,255,255,0.15)' }} />
-              <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 'var(--lv2-fs-1)', color: 'var(--lv2-ink-4)', marginLeft: 8 }}>dataset_preview.csv</span>
+              <span style={{ fontFamily: 'var(--lv2-mono)', fontSize: 'var(--lv2-fs-1)', color: 'var(--lv2-ink-4)', marginLeft: 8 }}>dataset_preview.csv</span>
             </div>
             <div style={{ flex: 1, padding: 'clamp(10px,1.6vw,20px)', overflow: 'hidden' }}>
-              <table aria-hidden="true" style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'ui-monospace,monospace', fontSize: 'clamp(var(--lv2-fs-1),1vw,var(--lv2-fs-2))', color: 'var(--lv2-ink-3)' }}>
+              <table aria-hidden="true" style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--lv2-mono)', fontSize: 'clamp(var(--lv2-fs-1),1vw,var(--lv2-fs-2))', color: 'var(--lv2-ink-3)' }}>
                 <thead>
                   <tr style={{ color: 'var(--lv2-accent)', textAlign: 'left' }}>
                     {['id', 'age', 'income', 'city', 'target'].map((h) => (
@@ -948,7 +920,7 @@ export default function LandingPage() {
             <div
               style={{
                 padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.08)',
-                fontFamily: 'ui-monospace,monospace', fontSize: 'var(--lv2-fs-1)', color: 'var(--lv2-ink-4)',
+                fontFamily: 'var(--lv2-mono)', fontSize: 'var(--lv2-fs-1)', color: 'var(--lv2-ink-4)',
                 display: 'flex', alignItems: 'center', gap: 8,
               }}
             >
@@ -975,13 +947,13 @@ export default function LandingPage() {
             <span
               style={{
                 position: 'absolute', bottom: 16, left: 16,
-                fontFamily: 'ui-monospace,monospace', fontSize: 'var(--lv2-fs-1)', color: 'var(--lv2-ink-4)',
+                fontFamily: 'var(--lv2-mono)', fontSize: 'var(--lv2-fs-1)', color: 'var(--lv2-ink-4)',
               }}
             >
               gradient_descent · scrub ↓
             </span>
           </div>
-          <div data-reveal style={moduleTextPanelStyle}>
+          <div data-reveal className="lv2-scrim lv2-scrim-left" style={moduleTextPanelStyle}>
             <div data-plx="0.1" aria-hidden="true" className="lv2-serif" style={ghostNumStyle}>05</div>
             <h3 className="lv2-serif" style={moduleH3Style}>ELM Studio</h3>
             <p style={moduleParaStyle}>
@@ -1004,7 +976,7 @@ export default function LandingPage() {
       {/* ═══ MODULE 06 — AI MODEL HUB ═══ */}
       <section id="try" style={moduleSectionStyle}>
         <div style={moduleGridStyle}>
-          <div data-reveal style={moduleTextPanelStyle}>
+          <div data-reveal className="lv2-scrim lv2-scrim-left" style={moduleTextPanelStyle}>
             <div data-plx="0.1" aria-hidden="true" className="lv2-serif" style={ghostNumStyle}>06</div>
             <h3 className="lv2-serif" style={moduleH3Style}>AI Model Hub</h3>
             <p style={moduleParaStyle}>
@@ -1028,7 +1000,7 @@ export default function LandingPage() {
               <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,255,255,0.15)' }} />
               <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,255,255,0.15)' }} />
               <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,255,255,0.15)' }} />
-              <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 'var(--lv2-fs-1)', color: 'var(--lv2-ink-4)', marginLeft: 8 }}>model-hub · prediction</span>
+              <span style={{ fontFamily: 'var(--lv2-mono)', fontSize: 'var(--lv2-fs-1)', color: 'var(--lv2-ink-4)', marginLeft: 8 }}>model-hub · prediction</span>
             </div>
             <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div data-reveal style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', aspectRatio: '16/9' }}>
@@ -1041,7 +1013,7 @@ export default function LandingPage() {
                 />
                 <span
                   style={{
-                    position: 'absolute', bottom: 10, left: 10, fontFamily: 'ui-monospace,monospace',
+                    position: 'absolute', bottom: 10, left: 10, fontFamily: 'var(--lv2-mono)',
                     fontSize: 'var(--lv2-fs-1)', color: 'var(--lv2-ink-3)', background: 'rgba(6,7,12,0.7)', padding: '4px 8px', borderRadius: 6,
                   }}
                 >
@@ -1054,7 +1026,7 @@ export default function LandingPage() {
                 { label: 'Egyptian cat', conf: 0.02 },
               ].map((r) => (
                 <div key={r.label} data-reveal style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 'var(--lv2-fs-2)', color: 'var(--lv2-ink-2)', width: 110, flexShrink: 0 }}>
+                  <span style={{ fontFamily: 'var(--lv2-mono)', fontSize: 'var(--lv2-fs-2)', color: 'var(--lv2-ink-2)', width: 110, flexShrink: 0 }}>
                     {r.label}
                   </span>
                   <div style={{ flex: 1, height: 7, borderRadius: 4, background: 'rgba(255,255,255,0.07)', overflow: 'hidden' }}>
@@ -1065,7 +1037,7 @@ export default function LandingPage() {
                       }}
                     />
                   </div>
-                  <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 'var(--lv2-fs-2)', color: 'var(--lv2-accent-hi)', width: 42, textAlign: 'right' }}>
+                  <span style={{ fontFamily: 'var(--lv2-mono)', fontSize: 'var(--lv2-fs-2)', color: 'var(--lv2-accent-hi)', width: 42, textAlign: 'right' }}>
                     {r.conf.toFixed(2)}
                   </span>
                 </div>
@@ -1124,7 +1096,7 @@ export default function LandingPage() {
         }}
       >
         <div style={{ ...moduleGridStyle, width: '100%', alignItems: 'center' }}>
-          <div data-reveal style={{ ...moduleTextPanelStyle, maxWidth: 560 }}>
+          <div data-reveal className="lv2-scrim lv2-scrim-left" style={{ ...moduleTextPanelStyle, maxWidth: 560 }}>
             <div data-plx="0.1" aria-hidden="true" className="lv2-serif" style={ghostNumStyle}>09</div>
             <div className="lv2-label" style={{ marginTop: 16 }}>The researcher</div>
             <h3 className="lv2-serif" style={{ ...moduleH3Style, marginTop: 14 }}>{DEVELOPER_PROFILE.name}</h3>

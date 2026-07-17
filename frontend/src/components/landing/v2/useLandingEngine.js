@@ -127,13 +127,19 @@ export default function useLandingEngine({ sectionIds }) {
     // three.js (and the whole scene) loads lazily so routes other than "/"
     // never pay for it, and the landing DOM is interactive immediately.
     let engine = null
-    import('./engine/OptimaScene').then(({ default: OptimaScene }) => {
-      if (S.dead) return
-      engine = new OptimaScene(canvas)
-      // the scene may have self-degraded on a small device; keep the
-      // watchdog's ladder in sync so it can only step further down
-      if (engine.small) S.qLevel = Math.max(S.qLevel, 1)
-    }).catch(() => { /* WebGL/network failure: page still works, static bg */ })
+    let sceneReady = false
+    import('./engine/OptimaScene')
+      .then(({ default: OptimaScene }) => {
+        if (S.dead) return
+        engine = new OptimaScene(canvas)
+        // the scene may have self-degraded on a small device; keep the
+        // watchdog's ladder in sync so it can only step further down
+        if (engine.small) S.qLevel = Math.max(S.qLevel, 1)
+      })
+      .catch(() => { /* WebGL/network failure: page still works, static bg */ })
+      .finally(() => {
+        sceneReady = true
+      })
     const sound = new SoundEngine()
     soundRef.current = sound
     const loss = refs.lossCanvas.current ? new LossCurve(refs.lossCanvas.current) : null
@@ -169,18 +175,40 @@ export default function useLandingEngine({ sectionIds }) {
       const l = refs.loader.current
       if (l) l.style.display = 'none'
     } else {
+      // The counter used to be theatre: interval math that withheld the
+      // page for ~1.6s regardless of how fast the machine was. It now
+      // tracks the work it claims to — fetching the three.js chunk and
+      // building the scene — and finishes as soon as that lands.
+      //
+      // Everything is derived from elapsed time, never from tick count:
+      // building the scene blocks the main thread for ~1s, so intervals
+      // fire sparsely and any per-tick increment would crawl.
       const el = refs.counter.current
-      let n = 0
+      const started = performance.now()
+      let readyAt = 0
+      let atReady = 0
+      let shown = 0
       loaderIv = setInterval(() => {
-        n += Math.max(2, Math.round((100 - n) * 0.14))
-        if (n >= 100) {
-          n = 100
-          clearInterval(loaderIv)
-          setTimeout(dismissLoader, 260)
+        const now = performance.now()
+        if (sceneReady) {
+          if (!readyAt) {
+            readyAt = now
+            atReady = shown
+          }
+          const p = Math.min(1, (now - readyAt) / 320)
+          shown = atReady + (100 - atReady) * p
+        } else {
+          // creep toward 88 while the real work happens
+          shown = Math.max(shown, Math.min(88, (now - started) / 16))
         }
-        if (el) el.textContent = String(n).padStart(3, '0')
+        if (el) el.textContent = String(Math.floor(shown)).padStart(3, '0')
+        if (shown >= 100) {
+          clearInterval(loaderIv)
+          dismissLoader()
+        }
       }, 26)
-      loaderTimeout = setTimeout(dismissLoader, 4200) // hard fallback
+      // Never hold the page hostage to a hung import.
+      loaderTimeout = setTimeout(dismissLoader, 4200)
     }
 
     /* ── reveal-on-scroll initial styles ──────────────────────── */
