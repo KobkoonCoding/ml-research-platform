@@ -338,11 +338,30 @@ export default function LandingPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
-  // Esc closes the mobile drawer (the modal handles its own Esc)
+  // Mobile drawer: Esc to close, scroll lock, focus moved in and trapped,
+  // then restored to the burger — same contract as the module modal.
+  const drawerRef = useRef(null)
   useEffect(() => {
     if (!drawerOpen) return undefined
+    const opener = document.activeElement
+    drawerRef.current?.querySelector('button, a[href]')?.focus()
     const onKey = (e) => {
-      if (e.key === 'Escape') setDrawerOpen(false)
+      if (e.key === 'Escape') {
+        setDrawerOpen(false)
+        return
+      }
+      if (e.key !== 'Tab' || !drawerRef.current) return
+      const items = drawerRef.current.querySelectorAll('button, a[href]')
+      if (!items.length) return
+      const first = items[0]
+      const last = items[items.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
     }
     document.addEventListener('keydown', onKey)
     const prev = document.body.style.overflow
@@ -350,6 +369,7 @@ export default function LandingPage() {
     return () => {
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = prev
+      if (opener instanceof HTMLElement) opener.focus()
     }
   }, [drawerOpen])
 
@@ -457,13 +477,18 @@ export default function LandingPage() {
           <div
             style={{
               fontSize: 11, letterSpacing: '0.32em', textTransform: 'uppercase',
-              color: '#5a6273', marginTop: 26,
+              color: '#7d879c', marginTop: 26,
             }}
           >
             Where Mathematics Meets Machine Learning
           </div>
         </div>
       )}
+
+      {/* First tab stop: jump past the pinned hero story to content */}
+      <a className="lv2-skip-link" href="#manifesto" onClick={(e) => handleAnchor(e, 'manifesto')}>
+        Skip to content
+      </a>
 
       {/* Skip intro — quick escape from the pinned hero story */}
       {showSkip && (
@@ -540,6 +565,7 @@ export default function LandingPage() {
             <button
               className="lv2-nav-link"
               onClick={() => setSoundOn(toggleSound())}
+              aria-pressed={soundOn}
               style={{ background: 'none', border: 'none', cursor: 'pointer' }}
             >
               <span
@@ -578,7 +604,7 @@ export default function LandingPage() {
 
       {/* Mobile drawer — top-down curtain reveal, staggered items */}
       {drawerOpen && (
-        <div className="lv2-drawer">
+        <div className="lv2-drawer" ref={drawerRef} role="dialog" aria-modal="true" aria-label="Menu">
           {[
             { id: 'clean', label: 'Clean' },
             { id: 'train', label: 'Train' },
@@ -612,6 +638,7 @@ export default function LandingPage() {
           <button
             className="lv2-drawer-item"
             style={{ animationDelay: '0.53s', color: '#8fb6ff', fontSize: '1.15rem' }}
+            aria-pressed={soundOn}
             onClick={() => setSoundOn(toggleSound())}
           >
             Sound · {soundOn ? 'on' : 'off'}
@@ -636,8 +663,9 @@ export default function LandingPage() {
       )}
 
       {/* ═══ HERO — 520vh pinned scroll story ═══ */}
-      <section id="hero" ref={refs.heroWrap} style={{ position: 'relative', height: '400vh', zIndex: 2 }}>
-        <div style={{ position: 'sticky', top: 0, height: '100vh', overflow: 'hidden', perspective: 1200 }}>
+      <main id="content">
+      <section id="hero" ref={refs.heroWrap} style={{ position: 'relative', height: '400dvh', zIndex: 2 }}>
+        <div style={{ position: 'sticky', top: 0, height: '100dvh', overflow: 'hidden', perspective: 1200 }}>
           <div style={{ position: 'absolute', inset: '0 auto 0 0', width: '48%', pointerEvents: 'none', background: 'linear-gradient(90deg,rgba(6,7,12,0.76),rgba(6,7,12,0.34) 44%,transparent)' }} />
           <div style={{ position: 'absolute', inset: '0 0 0 auto', width: '48%', pointerEvents: 'none', background: 'linear-gradient(270deg,rgba(6,7,12,0.76),rgba(6,7,12,0.34) 44%,transparent)' }} />
 
@@ -686,7 +714,10 @@ export default function LandingPage() {
 
           {/* Step 1 — raw data */}
           <div data-hero-step style={{ ...heroCardStyle('right'), bottom: '18%' }}>
-            <div className="lv2-label" style={{ marginBottom: 22 }}>01 — Raw data</div>
+            <div className="lv2-label" style={{ marginBottom: 22 }}>
+              <span className="lv2-sr-only">01 — Raw data</span>
+              <span data-scramble aria-hidden="true">01 — Raw data</span>
+            </div>
             <h2 className="lv2-serif" style={heroH2Style}>
               Every dataset begins
               <br />
@@ -696,7 +727,10 @@ export default function LandingPage() {
 
           {/* Step 2 — optimization */}
           <div data-hero-step style={{ ...heroCardStyle('left'), top: '22%' }}>
-            <div className="lv2-label" style={{ marginBottom: 22 }}>02 — Optimization</div>
+            <div className="lv2-label" style={{ marginBottom: 22 }}>
+              <span className="lv2-sr-only">02 — Optimization</span>
+              <span data-scramble aria-hidden="true">02 — Optimization</span>
+            </div>
             <h2 className="lv2-serif" style={heroH2Style}>
               Optimization folds
               <br />
@@ -706,7 +740,10 @@ export default function LandingPage() {
 
           {/* Step 3 — inference */}
           <div data-hero-step style={{ ...heroCardStyle('right'), bottom: '20%' }}>
-            <div className="lv2-label" style={{ marginBottom: 22 }}>03 — Inference</div>
+            <div className="lv2-label" style={{ marginBottom: 22 }}>
+              <span className="lv2-sr-only">03 — Inference</span>
+              <span data-scramble aria-hidden="true">03 — Inference</span>
+            </div>
             <h2 className="lv2-serif" style={heroH2Style}>
               The model wakes up —
               <br />
@@ -720,12 +757,12 @@ export default function LandingPage() {
             style={{
               position: 'absolute', bottom: 34, left: '50%', transform: 'translateX(-50%)',
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
-              fontSize: 10.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: '#5a6273',
+              fontSize: 10.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: '#7d879c',
             }}
           >
             <span>Scroll</span>
-            <div style={{ width: 1, height: 34, background: 'linear-gradient(#5a6273,transparent)', position: 'relative', overflow: 'hidden' }}>
-              <span style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 8, background: '#6da8ff', animation: 'lv2-scrolldot 1.8s infinite' }} />
+            <div style={{ width: 1, height: 34, background: 'linear-gradient(#7d879c,transparent)', position: 'relative', overflow: 'hidden' }}>
+              <span className="lv2-scrolldot-anim" style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 8, background: '#6da8ff', animation: 'lv2-scrolldot 1.8s infinite' }} />
             </div>
           </div>
         </div>
@@ -740,7 +777,7 @@ export default function LandingPage() {
           maxWidth: 1300, margin: '0 auto', textAlign: 'center',
         }}
       >
-        <div className="lv2-label" style={{ color: '#5a6273', marginBottom: 46 }}>The thesis</div>
+        <div className="lv2-label" style={{ color: '#7d879c', marginBottom: 46 }}>The thesis</div>
         <p
           className="lv2-serif"
           style={{
@@ -794,7 +831,7 @@ export default function LandingPage() {
           background: 'rgba(6,7,12,0.35)', backdropFilter: 'blur(6px)',
         }}
       >
-        <div style={{ display: 'flex', width: 'max-content', animation: 'lv2-marquee 34s linear infinite', willChange: 'transform' }}>
+        <div className="lv2-marquee" aria-hidden="true" style={{ display: 'flex', width: 'max-content', animation: 'lv2-marquee 34s linear infinite', willChange: 'transform' }}>
           <TickerGroup />
           <TickerGroup />
         </div>
@@ -835,7 +872,7 @@ export default function LandingPage() {
               <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 11.5, color: '#8890a3', marginLeft: 8 }}>dataset_preview.csv</span>
             </div>
             <div style={{ flex: 1, padding: 'clamp(10px,1.6vw,20px)', overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'ui-monospace,monospace', fontSize: 'clamp(10px,1vw,12.5px)', color: '#b6bdcc' }}>
+              <table aria-hidden="true" style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'ui-monospace,monospace', fontSize: 'clamp(10px,1vw,12.5px)', color: '#b6bdcc' }}>
                 <thead>
                   <tr style={{ color: '#6da8ff', textAlign: 'left' }}>
                     {['id', 'age', 'income', 'city', 'target'].map((h) => (
@@ -1049,7 +1086,7 @@ export default function LandingPage() {
       <section
         id="developer"
         style={{
-          position: 'relative', zIndex: 2, minHeight: '105vh',
+          position: 'relative', zIndex: 2, minHeight: '105dvh',
           display: 'flex', flexDirection: 'column', justifyContent: 'center',
           padding: 'clamp(70px,10vh,130px) clamp(20px,7vw,120px) 0',
         }}
@@ -1063,7 +1100,7 @@ export default function LandingPage() {
               <span style={{ color: '#8fb6ff', fontSize: 13.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                 {DEVELOPER_PROFILE.role}
               </span>
-              <span style={{ color: '#5a6273' }}>·</span>
+              <span style={{ color: '#7d879c' }}>·</span>
               <span style={{ color: '#aab3c5', fontSize: 13.5 }}>{DEVELOPER_PROFILE.affiliation}</span>
             </div>
             <p style={{ ...moduleParaStyle, fontStyle: 'italic' }}>“{DEVELOPER_PROFILE.bio}”</p>
@@ -1089,14 +1126,14 @@ export default function LandingPage() {
           {/* Right half stays empty — the WebGL particles assemble into the
               developer's 3D portrait here (morph stage 3). On small screens
               this spacer keeps the portrait visible below the panel. */}
-          <div aria-hidden style={{ minHeight: '46vh' }} />
+          <div aria-hidden style={{ minHeight: '46dvh' }} />
         </div>
         <footer
           style={{
             maxWidth: 1300, margin: 'clamp(80px,12vh,140px) auto 0', paddingTop: 36,
             borderTop: '1px solid rgba(255,255,255,0.1)',
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            flexWrap: 'wrap', gap: 20, color: '#5a6273', fontSize: 13,
+            flexWrap: 'wrap', gap: 20, color: '#7d879c', fontSize: 13,
           }}
         >
           <div className="lv2-serif" style={{ fontSize: 20, color: '#eef1f8' }}>
@@ -1111,6 +1148,8 @@ export default function LandingPage() {
           <div>© 2026 ML Research Platform · Dr. Kobkoon Janngam · Chiang Mai University</div>
         </footer>
       </section>
+
+      </main>
 
       <ModuleModal open={modalOpen} onClose={() => setModalOpen(false)} />
     </div>

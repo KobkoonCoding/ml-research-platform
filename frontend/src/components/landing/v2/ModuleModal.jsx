@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 /**
@@ -39,11 +39,43 @@ export const MODULES = [
 
 export default function ModuleModal({ open, onClose }) {
   const navigate = useNavigate()
+  const panelRef = useRef(null)
+  const closeRef = useRef(null)
+  const openerRef = useRef(null)
+
+  // Callers pass an inline arrow, so `onClose` is a new reference every
+  // render. Kept in a ref, the focus effect below can depend on `open`
+  // alone — otherwise it re-ran constantly and re-captured the "opener"
+  // as whatever was focused inside the dialog, breaking focus restore.
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     if (!open) return undefined
+    openerRef.current = document.activeElement
+    // Move focus in, keep Tab inside the dialog, restore focus on close —
+    // aria-modal alone doesn't stop Tab from walking the page behind.
+    closeRef.current?.focus()
+
     const onKey = (e) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        onCloseRef.current()
+        return
+      }
+      if (e.key !== 'Tab' || !panelRef.current) return
+      const items = panelRef.current.querySelectorAll('button, a[href], [tabindex]:not([tabindex="-1"])')
+      if (!items.length) return
+      const first = items[0]
+      const last = items[items.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
     }
     document.addEventListener('keydown', onKey)
     const prev = document.body.style.overflow
@@ -51,8 +83,10 @@ export default function ModuleModal({ open, onClose }) {
     return () => {
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = prev
+      const opener = openerRef.current
+      if (opener instanceof HTMLElement && document.contains(opener)) opener.focus()
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
 
@@ -71,6 +105,7 @@ export default function ModuleModal({ open, onClose }) {
       }}
     >
       <div
+        ref={panelRef}
         onClick={(e) => e.stopPropagation()}
         style={{
           position: 'relative', width: '100%', maxWidth: 880, maxHeight: '90vh', overflowY: 'auto',
@@ -81,6 +116,7 @@ export default function ModuleModal({ open, onClose }) {
         }}
       >
         <button
+          ref={closeRef}
           onClick={onClose}
           aria-label="Close"
           style={{

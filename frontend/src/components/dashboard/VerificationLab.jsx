@@ -6,26 +6,35 @@ import PageHeader from './elm/PageHeader'
 import { VerifySVG } from './elm/AnimatedSVGs'
 import { API_BASE } from '../../lib/constants'
 import { useApp } from '../../context/AppContext'
+import { loadPlotly } from '../../lib/plotly'
 
 const API = API_BASE
 
-/* ─── Plotly helper (loaded via CDN in index.html) ─── */
+/* ─── Plotly helper (library is lazy-loaded on first chart) ─── */
 const Plot = ({ id, data, layout, style }) => {
   const ref = useRef()
   useEffect(() => {
-    if (ref.current && window.Plotly) {
-      const merged = {
-        paper_bgcolor: 'transparent',
-        plot_bgcolor: 'rgba(0,0,0,0.15)',
-        font: { color: '#94a3b8', family: 'Inter, sans-serif', size: 11 },
-        margin: { t: 40, r: 20, b: 40, l: 50 },
-        xaxis: { gridcolor: 'rgba(255,255,255,0.06)', zerolinecolor: 'rgba(255,255,255,0.1)' },
-        yaxis: { gridcolor: 'rgba(255,255,255,0.06)', zerolinecolor: 'rgba(255,255,255,0.1)' },
-        ...layout,
-      }
-      window.Plotly.newPlot(ref.current, data, merged, { responsive: true, displayModeBar: false })
+    const el = ref.current
+    let cancelled = false
+    loadPlotly()
+      .then((Plotly) => {
+        if (cancelled || !el) return
+        const merged = {
+          paper_bgcolor: 'transparent',
+          plot_bgcolor: 'rgba(0,0,0,0.15)',
+          font: { color: '#94a3b8', family: 'Inter, sans-serif', size: 11 },
+          margin: { t: 40, r: 20, b: 40, l: 50 },
+          xaxis: { gridcolor: 'rgba(255,255,255,0.06)', zerolinecolor: 'rgba(255,255,255,0.1)' },
+          yaxis: { gridcolor: 'rgba(255,255,255,0.06)', zerolinecolor: 'rgba(255,255,255,0.1)' },
+          ...layout,
+        }
+        Plotly.newPlot(el, data, merged, { responsive: true, displayModeBar: false })
+      })
+      .catch(() => { /* charts are enhancement — page stays usable */ })
+    return () => {
+      cancelled = true
+      if (el && window.Plotly) window.Plotly.purge(el)
     }
-    return () => { if (ref.current && window.Plotly) window.Plotly.purge(ref.current) }
   }, [data, layout])
   return <div ref={ref} id={id} style={{ width: '100%', ...style }} />
 }

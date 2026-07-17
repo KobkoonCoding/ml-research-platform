@@ -57,6 +57,16 @@ const CAMERA_KEYS = [
   { t: 1.0, p: [0.1, 0.46, 4.3], l: [0.03, 0.55, 0] },
 ]
 
+/**
+ * Small-device test used for every particle/effect budget. Keyed on the
+ * SHORT viewport edge plus pointer type, so a phone in landscape (e.g.
+ * 812x375) is still treated as a phone — checking innerWidth alone let
+ * landscape phones load the full desktop scene.
+ */
+const isSmallDevice = () =>
+  Math.min(window.innerWidth, window.innerHeight) < 500 ||
+  (window.matchMedia && window.matchMedia('(pointer: coarse)').matches && window.innerWidth < 1100)
+
 const smooth = (x) => {
   const c = Math.max(0, Math.min(1, x))
   return c * c * (3 - 2 * c)
@@ -99,8 +109,11 @@ export default class OptimaScene {
     this.spinner = new THREE.Group()
     this.world.add(this.spinner)
 
-    // fewer particles on small screens — mobile GPUs pay dearly for fill
-    if (window.innerWidth < 768) {
+    // Mobile GPUs pay dearly for fill: fewer particles, and start at the
+    // degraded quality level instead of waiting for the watchdog to catch
+    // 40 janky frames first.
+    this.small = isSmallDevice()
+    if (this.small) {
       this.opts.pointDensity = Math.min(this.opts.pointDensity, 4200)
     }
 
@@ -112,6 +125,9 @@ export default class OptimaScene {
     this._buildSmoke()
     this.rebuildCloud()
     this._loadPortrait()
+    // Small devices start already degraded rather than earning it through
+    // 40 dropped frames: bloom/grade off, pixel ratio 1.
+    if (this.small) this.degrade(1)
     // the wordmark uses the display serif — refill once fonts are ready
     if (document.fonts && document.fonts.ready) {
       document.fonts.ready.then(() => {
@@ -301,7 +317,7 @@ export default class OptimaScene {
     this.smoke = []
     // Three depth bands. NORMAL blending is what makes it read as real
     // fog: it occludes what's behind it instead of glowing on top.
-    const mobile = window.innerWidth < 768
+    const mobile = this.small
     const bands = [
       // [count, zMin, zMax, scaleMin, scaleMax, opacityMin, opacityMax]
       [mobile ? 8 : 16, -4.5, -1.5, 6.0, 11.0, 0.1, 0.2],   // far wall
@@ -1039,7 +1055,7 @@ export default class OptimaScene {
    */
   _buildPortraitExtra() {
     if (this.portExtra || !this.portPts) return
-    const M = window.innerWidth < 768 ? 18000 : PORTRAIT_EXTRA_COUNT
+    const M = this.small ? 18000 : PORTRAIT_EXTRA_COUNT
     const src = this.portPts
     const S = src.length / 7
     const tgt = new Float32Array(M * 4)

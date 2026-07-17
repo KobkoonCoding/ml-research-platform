@@ -30,8 +30,65 @@
   font-family: inherit;
 }
 
+/* ── Keyboard focus ──────────────────────────────────────────
+   One visible treatment for every interactive control on the dark
+   scene. :focus-visible only, so pointer users never see a ring. */
+.landing-v2 a:focus-visible,
+.landing-v2 button:focus-visible,
+.landing-v2 input:focus-visible,
+.landing-v2 [tabindex]:focus-visible,
+.lv2-skip:focus-visible,
+.lv2-modal-card:focus-visible,
+.lv2-skip-link:focus-visible {
+  outline: 2px solid #8fb6ff;
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+.landing-v2 .lv2-pill:focus-visible,
+.landing-v2 .lv2-pill-solid:focus-visible,
+.lv2-dot:focus-visible {
+  outline-offset: 4px;
+  border-radius: 100px;
+}
+
+/* Skip link — first tab stop, jumps past the pinned hero story */
+.lv2-skip-link {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 210;
+  transform: translateY(-160%);
+  transition: transform 0.25s;
+  background: #6da8ff;
+  color: #06070c;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 11px 18px;
+  border-radius: 10px;
+}
+
+.lv2-skip-link:focus {
+  transform: translateY(0);
+  color: #06070c;
+}
+
 .lv2-serif {
   font-family: 'Fraunces', Georgia, serif;
+}
+
+/* Text for assistive tech only — used where a decorative effect (the
+   decrypt scramble) mutates the visible glyphs. */
+.lv2-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .lv2-label {
@@ -95,8 +152,8 @@
 /* Mobile hamburger + drawer */
 .lv2-burger {
   display: none;
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.04);
@@ -208,7 +265,7 @@
   font-size: 10px;
   letter-spacing: 0.3em;
   text-transform: uppercase;
-  color: #5a6273;
+  color: #7d879c;
   margin-top: 18px;
   opacity: 0;
   animation: lv2-drawer-item 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
@@ -265,8 +322,10 @@
 /* Section dots — hover reveals a text label */
 .lv2-dot {
   position: relative;
-  width: 24px;
-  height: 24px;
+  /* 44px touch target (WCAG 2.5.8 / Apple HIG); the visual dot stays 8px */
+  width: 44px;
+  height: 44px;
+  margin: -10px 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -275,7 +334,7 @@
 
 .lv2-dot-label {
   position: absolute;
-  right: 30px;
+  right: 40px;
   top: 50%;
   transform: translate(8px, -50%);
   font-size: 10.5px;
@@ -311,7 +370,7 @@
   background: rgba(9, 11, 18, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 100px;
-  padding: 11px 20px;
+  padding: 14px 22px;
   cursor: pointer;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -432,9 +491,26 @@
   border-radius: 5px;
 }
 
+/* Narrow screens: the model description must survive — it's the only
+   thing telling you what each model does. It stacks under the title
+   instead of disappearing. */
 @media (max-width: 900px) {
+  .lv2-row {
+    grid-template-columns: 3.5ch minmax(0, 1fr) 2ch;
+    row-gap: 6px;
+    padding: 18px 6px;
+  }
+  .lv2-row-title {
+    white-space: normal;
+  }
   .lv2-row-meta {
-    display: none;
+    grid-column: 2 / 3;
+    grid-row: 2;
+    white-space: normal;
+    font-size: 13px;
+  }
+  .lv2-row-arrow {
+    grid-row: 1;
   }
 }
 
@@ -448,8 +524,53 @@
   to { transform: translateX(-50%); }
 }
 
-/* Touch devices: no custom cursor */
+/* Touch devices: no custom cursor, and no GPU-hungry backdrop blur —
+   stacked blur layers are among the most expensive effects on phones */
 @media (pointer: coarse) {
+  .landing-v2 [data-cursor] {
+    display: none !important;
+  }
+  .landing-v2 [data-grain] {
+    display: none !important;
+  }
+  .landing-v2 [style*="backdrop-filter"],
+  .lv2-nav-links,
+  .lv2-drawer,
+  .lv2-skip {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  .lv2-nav-links {
+    background: rgba(9, 11, 18, 0.92);
+  }
+  .lv2-drawer {
+    background: #06070c;
+  }
+}
+
+/* ── Reduced motion ──────────────────────────────────────────
+   Everything that moves for decoration stops. The scroll story still
+   works (the engine snaps morphs instead of easing them), but nothing
+   animates on its own, and no text mutates. */
+@media (prefers-reduced-motion: reduce) {
+  .landing-v2 *,
+  .landing-v2 *::before,
+  .landing-v2 *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .lv2-marquee {
+    animation: none !important;
+    transform: none !important;
+  }
+  .lv2-scrolldot-anim {
+    animation: none !important;
+  }
+  .landing-v2 [data-grain] {
+    display: none !important;
+  }
   .landing-v2 [data-cursor] {
     display: none !important;
   }

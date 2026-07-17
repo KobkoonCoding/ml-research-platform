@@ -111,7 +111,10 @@ export default function useLandingEngine({ sectionIds }) {
       actDot: -1,
     }
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const finePtr = window.matchMedia('(pointer:fine)').matches
+    // Reduced motion keeps the scroll story (it's the page's content) but
+    // strips every decorative motion layer: no scramble, no custom cursor,
+    // no magnets/tilt, and morphs snap instead of easing.
+    const finePtr = window.matchMedia('(pointer:fine)').matches && !reduceMotion
 
     // three.js (and the whole scene) loads lazily so routes other than "/"
     // never pay for it, and the landing DOM is interactive immediately.
@@ -119,6 +122,9 @@ export default function useLandingEngine({ sectionIds }) {
     import('./engine/OptimaScene').then(({ default: OptimaScene }) => {
       if (S.dead) return
       engine = new OptimaScene(canvas)
+      // the scene may have self-degraded on a small device; keep the
+      // watchdog's ladder in sync so it can only step further down
+      if (engine.small) S.qLevel = Math.max(S.qLevel, 1)
     }).catch(() => { /* WebGL/network failure: page still works, static bg */ })
     const sound = new SoundEngine()
     soundRef.current = sound
@@ -166,12 +172,17 @@ export default function useLandingEngine({ sectionIds }) {
     }
 
     /* ── reveal-on-scroll initial styles ──────────────────────── */
+    // Under reduced motion the reveal is opacity-only (no travel, no blur)
     const revealEls = [...root.querySelectorAll('[data-reveal]')]
     revealEls.forEach((el) => {
       const k = el.parentElement
         ? [...el.parentElement.children].filter((c) => c.hasAttribute && c.hasAttribute('data-reveal')).indexOf(el)
         : 0
       el.style.opacity = '0'
+      if (reduceMotion) {
+        el.style.transition = 'opacity .4s ease'
+        return
+      }
       el.style.transform = 'translateY(44px) scale(0.985)'
       el.style.filter = 'blur(10px)'
       el.style.transition = `opacity 1.15s cubic-bezier(.2,.7,.2,1) ${Math.max(0, k) * 0.14}s, transform 1.15s cubic-bezier(.2,.7,.2,1) ${Math.max(0, k) * 0.14}s, filter 1.15s cubic-bezier(.2,.7,.2,1) ${Math.max(0, k) * 0.14}s`
@@ -179,6 +190,10 @@ export default function useLandingEngine({ sectionIds }) {
     const wordEls = [...root.querySelectorAll('[data-word]')]
     wordEls.forEach((el, i) => {
       el.style.opacity = '0'
+      if (reduceMotion) {
+        el.style.transition = 'opacity .4s ease'
+        return
+      }
       el.style.transform = 'translateY(0.7em) rotate(2deg)'
       el.style.filter = 'blur(7px)'
       el.style.clipPath = 'inset(0 0 110% 0)'
@@ -330,18 +345,21 @@ export default function useLandingEngine({ sectionIds }) {
             k.style.transform = `translateY(${((1 - kf) * 30).toFixed(1)}px)`
             k.style.filter = `blur(${((1 - kf) * 6).toFixed(1)}px)`
             k.style.clipPath = `inset(-12% -6% ${((1 - kf) * 112).toFixed(1)}% -6%)`
-            // decrypt-scramble on the step label while it enters
-            // (plain-text nodes only — scrambling would destroy markup)
-            if (ki === 0 && vis && k.children.length === 0) {
-              const orig = k.dataset.txt || (k.dataset.txt = k.textContent)
+            // Decrypt-scramble the step label while it enters. Only the
+            // [data-scramble] node mutates — it is aria-hidden, and a
+            // visually-hidden sibling carries the real text, so assistive
+            // tech never reads the shuffling glyphs.
+            const scr = ki === 0 && vis && !reduceMotion ? k.querySelector('[data-scramble]') : null
+            if (scr) {
+              const orig = scr.dataset.txt || (scr.dataset.txt = scr.textContent)
               const n = orig.length
               const rev = Math.round(clamp01(inRaw) * n)
-              if (rev !== +(k.dataset.rev || -1)) {
-                k.dataset.rev = rev
+              if (rev !== +(scr.dataset.rev || -1)) {
+                scr.dataset.rev = rev
                 let sTxt = orig.slice(0, rev)
                 for (let q = rev; q < n; q++)
                   sTxt += orig[q] === ' ' ? ' ' : SCRAMBLE_CHARS[(Math.random() * SCRAMBLE_CHARS.length) | 0]
-                k.textContent = sTxt
+                scr.textContent = sTxt
               }
             }
           })
@@ -483,7 +501,7 @@ export default function useLandingEngine({ sectionIds }) {
           shiftX: S.shiftX || 0,
           pmx: S.hasPtr ? S.tmx : 9,
           pmy: S.hasPtr ? S.tmy : 9,
-          snap: false,
+          snap: reduceMotion,
         })
         if (res && res.stageChanged) sound.chime()
       }
