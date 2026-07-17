@@ -25,7 +25,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 
 const DEFAULTS = Object.freeze({
-  pointDensity: 6000,
+  pointDensity: 4800, // 20% fewer points than the deployed 6000 (sparser sphere)
   rotationSpeed: 1,
   flowSpeed: 0.3,
 })
@@ -39,6 +39,12 @@ const PORTRAIT_EXTRA_COUNT = 60000
 // particles, so the same alpha that reads as a glowing figure on desktop
 // nearly vanished on a phone. Bloom was doing the work; this puts it back.
 const NO_BLOOM_BOOST = 1.75
+
+// Global glow trim: every particle's emissive alpha is scaled by this, so the
+// whole scene reads 20% less luminous than the deployed baseline. Because bloom
+// feeds on particle brightness, the bloom halos dim in proportion too — one
+// knob, uniform 20% cut, no per-stage bookkeeping.
+const GLOW = 0.8
 
 // Camera keyframes over whole-page scroll fraction (t in [0..1]).
 const CAMERA_KEYS = [
@@ -120,7 +126,7 @@ export default class OptimaScene {
     // 40 janky frames first.
     this.small = isSmallDevice()
     if (this.small) {
-      this.opts.pointDensity = Math.min(this.opts.pointDensity, 4200)
+      this.opts.pointDensity = Math.min(this.opts.pointDensity, 3360) // 20% below the old 4200 cap
     }
 
     this.sprite = this._makeSprite()
@@ -961,7 +967,7 @@ export default class OptimaScene {
         '  aStage = mix(aStage, 0.5 * coreGlow, coreW);',
         '  aStage = mix(aStage, 0.4 + 0.26 * sweep, wordW);',
         '  float portA = 0.07 + aPort.w * 0.22;',
-        '  vA = twP * ig * mix(aStage, portA, portW) * uBoost;',
+        '  vA = twP * ig * mix(aStage, portA, portW) * uBoost * ' + GLOW + ';',
         '  vA *= 1.0 - netStageW * hideHalf;',
         '  float sizeStage = 1.0 + 0.35 * sphW + (0.25 * tessGlow) * tessW + (0.2 * coreGlow) * coreW + 0.1 * wordW;',
         '  gl_PointSize = sizeBase * uPR * uVh * twP * sizeStage * mix(1.0, 0.32 + aPort.w * 0.5, portW) * (260.0 / -mv.z);',
@@ -1192,7 +1198,7 @@ export default class OptimaScene {
         '  float tw = 0.85 + 0.15 * sin(uTime * (1.0 + aSeed.x * 2.0) + aSeed.y * 80.0);',
         // dense stack of 60k additive points saturates fast — keep each
         // point faint so the mass reads near-solid without burning white
-        '  vA = e * uPortW * tw * (0.075 + aTgt.w * 0.2) * uBoost;',
+        '  vA = e * uPortW * tw * (0.075 + aTgt.w * 0.2) * uBoost * ' + GLOW + ';',
         '  vCol = aColor * (0.5 + aTgt.w * 0.42);',
         '  gl_PointSize = (0.028 + aTgt.w * 0.042) * uPR * uVh * tw * (260.0 / -mv.z);',
         // same depth-of-field CoC as the main cloud
@@ -1337,13 +1343,15 @@ export default class OptimaScene {
     }
     if (this.nebula)
       this.nebula.forEach((sp, i) => {
-        sp.material.opacity = 0.3 + 0.08 * Math.sin(time * 0.07 + i * 1.7)
+        // purple nebula clouds are switched off behind the neural net (netW→1)
+        // so the net sits on clean dark; they return for the later stages.
+        sp.material.opacity = (0.3 + 0.08 * Math.sin(time * 0.07 + i * 1.7)) * (1 - netW)
         sp.position.y += Math.sin(time * 0.05 + i * 2) * 0.0008
       })
 
     if (this.netGroup) {
       // same no-bloom compensation the shaders get via uBoost
-      const gb = this.usePost ? 1 : NO_BLOOM_BOOST
+      const gb = (this.usePost ? 1 : NO_BLOOM_BOOST) * GLOW
       this.netGroup.visible = netW > 0.02
       this.netLines.material.opacity = Math.min(1, netW * (0.13 + 0.04 * Math.sin(time * 1.4)) * gb)
       this.netNodesPts.material.opacity = Math.min(1, netW * 0.9 * gb)
@@ -1466,7 +1474,9 @@ export default class OptimaScene {
       this.terrMat.uniforms.uReveal.value = tw
     }
     // the sky fades in with the intro and stays up the rest of the page
-    if (this.skyMat) this.skyMat.uniforms.uReveal.value = s.intro * (0.55 + 0.45 * (1 - netW))
+    // Sky dome is fully pulled back during the net stage (the purple glow the
+    // user asked to remove) and fades in as the terrain scene scrolls up.
+    if (this.skyMat) this.skyMat.uniforms.uReveal.value = s.intro * (1 - netW)
     if (this.descPts && this.descPoints.visible && tw > 0.02) {
       const e2 = 0.4
       const sp2 = 0.045 * fs
