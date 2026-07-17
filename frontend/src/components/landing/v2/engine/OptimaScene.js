@@ -32,8 +32,8 @@ const DEFAULTS = Object.freeze({
 
 // Extra particles that exist only for the developer-portrait finale.
 // The portrait goes for the igloo.inc look: an extremely dense mass of
-// tiny matte particles — presence through density, not glow.
-const PORTRAIT_EXTRA_COUNT = 22000
+// tiny matte particles packed to near-solid — presence through density.
+const PORTRAIT_EXTRA_COUNT = 40000
 
 // Camera keyframes over whole-page scroll fraction (t in [0..1]).
 const CAMERA_KEYS = [
@@ -750,9 +750,10 @@ export default class OptimaScene {
         uIntro: { value: 0 }, uPR: { value: Math.min(devicePixelRatio, 1.25) },
         uVh: { value: 1 },
         uMouse: { value: new THREE.Vector2(9, 9) },
+        uStir: { value: 0 },
       },
       vertexShader: [
-        'uniform float uTime; uniform float uMorph; uniform float uFlow; uniform float uIntro; uniform float uPR; uniform float uVh; uniform vec2 uMouse;',
+        'uniform float uTime; uniform float uMorph; uniform float uFlow; uniform float uIntro; uniform float uPR; uniform float uVh; uniform vec2 uMouse; uniform float uStir;',
         'attribute vec3 aWord; attribute vec4 aPort; attribute vec3 aPortC;',
         'attribute vec3 aNetA; attribute vec3 aNetB; attribute vec3 aNetC; attribute vec3 aCol;',
         'attribute vec2 aFlowD; attribute vec2 aMisc;',
@@ -839,12 +840,14 @@ export default class OptimaScene {
         '  float crisp = 1.0 - 0.85 * max(max(tessW, coreW), max(wordW, portW));',
         '  p += 0.025 * crisp * vec3(sin(uTime*0.7+seed*40.0), cos(uTime*0.55+seed*70.0), sin(uTime*0.85+seed*55.0));',
         // cursor puff at the portrait: nearby particles drift aside
-        '  if (portW > 0.02) {',
+        '  if (portW > 0.02 && uStir > 0.01) {',
         '    vec4 pc = projectionMatrix * modelViewMatrix * vec4(p, 1.0);',
         '    vec2 pn = pc.xy / max(0.1, pc.w);',
         '    vec2 dmv = pn - uMouse;',
-        '    float push = smoothstep(0.24, 0.0, length(dmv)) * portW * 0.3;',
-        '    p.xy += normalize(dmv + vec2(1e-4)) * push;',
+        '    float md = length(dmv);',
+        '    float push = smoothstep(0.12, 0.0, md) * portW * uStir * 0.13;',
+        '    vec2 dir = dmv / max(md, 1e-4);',
+        '    p.xy += (dir * 0.7 + vec2(-dir.y, dir.x) * 0.55) * push;',
         '  }',
         '  float ig = ss(uIntro);',
         '  p *= mix(1.7 + seed * 0.6, 1.0, ig);',
@@ -1031,7 +1034,7 @@ export default class OptimaScene {
    */
   _buildPortraitExtra() {
     if (this.portExtra || !this.portPts) return
-    const M = window.innerWidth < 768 ? 9000 : PORTRAIT_EXTRA_COUNT
+    const M = window.innerWidth < 768 ? 14000 : PORTRAIT_EXTRA_COUNT
     const src = this.portPts
     const S = src.length / 7
     const tgt = new Float32Array(M * 4)
@@ -1071,9 +1074,10 @@ export default class OptimaScene {
         uPR: { value: Math.min(devicePixelRatio, 1.25) },
         uVh: { value: 1 },
         uMouse: { value: new THREE.Vector2(9, 9) },
+        uStir: { value: 0 },
       },
       vertexShader: [
-        'uniform float uTime; uniform float uPortW; uniform float uPR; uniform float uVh; uniform vec2 uMouse;',
+        'uniform float uTime; uniform float uPortW; uniform float uPR; uniform float uVh; uniform vec2 uMouse; uniform float uStir;',
         'attribute vec4 aTgt; attribute vec3 aColor; attribute vec3 aScat; attribute vec2 aSeed;',
         'varying vec3 vCol; varying float vA;',
         'float ss(float x){ x = clamp(x, 0.0, 1.0); return x*x*(3.0-2.0*x); }',
@@ -1089,14 +1093,16 @@ export default class OptimaScene {
         '  vec4 pc = projectionMatrix * modelViewMatrix * vec4(p, 1.0);',
         '  vec2 pn = pc.xy / max(0.1, pc.w);',
         '  vec2 dmv = pn - uMouse;',
-        '  float push = smoothstep(0.24, 0.0, length(dmv)) * e * 0.3;',
-        '  p.xy += normalize(dmv + vec2(1e-4)) * push;',
+        '  float md = length(dmv);',
+        '  float push = smoothstep(0.12, 0.0, md) * e * uStir * 0.13;',
+        '  vec2 dir = dmv / max(md, 1e-4);',
+        '  p.xy += (dir * 0.7 + vec2(-dir.y, dir.x) * 0.55) * push;',
         '  vec4 mv = modelViewMatrix * vec4(p, 1.0);',
         '  gl_Position = projectionMatrix * mv;',
         '  float tw = 0.85 + 0.15 * sin(uTime * (1.0 + aSeed.x * 2.0) + aSeed.y * 80.0);',
-        '  vA = e * uPortW * tw * (0.07 + aTgt.w * 0.3);',
+        '  vA = e * uPortW * tw * (0.09 + aTgt.w * 0.33);',
         '  vCol = aColor * (0.55 + aTgt.w * 0.55);',
-        '  gl_PointSize = (0.022 + aTgt.w * 0.034) * uPR * uVh * tw * (260.0 / -mv.z);',
+        '  gl_PointSize = (0.028 + aTgt.w * 0.042) * uPR * uVh * tw * (260.0 / -mv.z);',
         '}',
       ].join('\n'),
       fragmentShader: [
@@ -1168,10 +1174,31 @@ export default class OptimaScene {
     U.uMorph.value = p
     U.uFlow.value = fs
     U.uIntro.value = s.intro
-    // pointer in NDC (y flipped: screen-down → NDC-up)
-    const pmx = s.pmx ?? 9
-    const pmy = s.pmy !== undefined ? -s.pmy : 9
+    // pointer in NDC (y flipped: screen-down → NDC-up). The disturbance
+    // model behaves like stirring smoke: the point trails the cursor and
+    // its strength builds while moving, then settles slowly.
+    const pmxRaw = s.pmx ?? 9
+    const pmyRaw = s.pmy !== undefined ? -s.pmy : 9
+    if (!this._pm) this._pm = { x: 9, y: 9, lx: 9, ly: 9, stir: 0 }
+    const PM = this._pm
+    if (pmxRaw < 5) {
+      if (PM.x > 5) {
+        PM.x = pmxRaw
+        PM.y = pmyRaw
+      }
+      const moved = Math.abs(pmxRaw - PM.lx) + Math.abs(pmyRaw - PM.ly) > 0.0015
+      PM.lx = pmxRaw
+      PM.ly = pmyRaw
+      PM.x += (pmxRaw - PM.x) * 0.09
+      PM.y += (pmyRaw - PM.y) * 0.09
+      PM.stir += ((moved ? 1 : 0) - PM.stir) * (moved ? 0.06 : 0.02)
+    } else {
+      PM.stir *= 0.97
+    }
+    const pmx = PM.x
+    const pmy = PM.y
     U.uMouse.value.set(pmx, pmy)
+    U.uStir.value = PM.stir
 
     const netW = 1 - clamp01(p)
     const w4 = smooth(clamp01(p - 3))
@@ -1215,6 +1242,7 @@ export default class OptimaScene {
       this.portExtraMat.uniforms.uTime.value = time
       this.portExtraMat.uniforms.uPortW.value = portW
       this.portExtraMat.uniforms.uMouse.value.set(pmx, pmy)
+      this.portExtraMat.uniforms.uStir.value = PM.stir
     }
 
     // drifting mist — everywhere except the neural-net stage, and at its
@@ -1236,14 +1264,14 @@ export default class OptimaScene {
           const dx = sv.x - pmx
           const dy = sv.y - pmy
           const dd = Math.sqrt(dx * dx + dy * dy)
-          if (dd < 0.4 && dd > 1e-4) {
-            const f = ((0.4 - dd) / 0.4) * 0.028
+          if (dd < 0.24 && dd > 1e-4) {
+            const f = ((0.24 - dd) / 0.24) * 0.011 * PM.stir
             m.ox += (dx / dd) * f
             m.oy += (dy / dd) * f
           }
         }
-        m.ox *= 0.93
-        m.oy *= 0.93
+        m.ox *= 0.965
+        m.oy *= 0.965
         m.s.position.y = m.y0 + Math.sin(time * 0.06 + m.drift) * 0.4 + m.oy
         m.s.position.x = m.x0 + Math.sin(time * 0.04 + m.drift * 1.7) * 0.5 + m.ox
       }
