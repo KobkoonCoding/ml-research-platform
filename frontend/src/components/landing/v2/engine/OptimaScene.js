@@ -30,17 +30,17 @@ const DEFAULTS = Object.freeze({
   flowSpeed: 0.3,
 })
 
-// Extra particles that exist only for the developer-portrait finale —
-// they fly in from a far shell as the last morph engages, roughly
-// doubling the portrait's density versus every other formation.
-const PORTRAIT_EXTRA_COUNT = 7000
+// Extra particles that exist only for the developer-portrait finale.
+// The portrait goes for the igloo.inc look: an extremely dense mass of
+// tiny matte particles — presence through density, not glow.
+const PORTRAIT_EXTRA_COUNT = 22000
 
 // Camera keyframes over whole-page scroll fraction (t in [0..1]).
 const CAMERA_KEYS = [
   // First two keys look from higher up so the net sits in the lower half
   // of the screen and the intro copy owns the top half.
-  { t: 0.0, p: [0, 0.3, 5.2], l: [0, 0.32, 0] },
-  { t: 0.08, p: [0.35, 0.3, 4.75], l: [0.1, 0.24, 0] },
+  { t: 0.0, p: [0, 0.26, 5.35], l: [0, 0.46, 0] },
+  { t: 0.08, p: [0.35, 0.28, 4.85], l: [0.1, 0.34, 0] },
   { t: 0.16, p: [0.95, 0.42, 4.0], l: [0.22, 0.06, 0] },
   { t: 0.26, p: [-0.85, -0.34, 3.55], l: [-0.16, 0.04, 0] },
   { t: 0.36, p: [0, 0.24, 3.95], l: [0, 0, 0] },
@@ -749,9 +749,10 @@ export default class OptimaScene {
         uTime: { value: 0 }, uMorph: { value: 0 }, uFlow: { value: 1 },
         uIntro: { value: 0 }, uPR: { value: Math.min(devicePixelRatio, 1.25) },
         uVh: { value: 1 },
+        uMouse: { value: new THREE.Vector2(9, 9) },
       },
       vertexShader: [
-        'uniform float uTime; uniform float uMorph; uniform float uFlow; uniform float uIntro; uniform float uPR; uniform float uVh;',
+        'uniform float uTime; uniform float uMorph; uniform float uFlow; uniform float uIntro; uniform float uPR; uniform float uVh; uniform vec2 uMouse;',
         'attribute vec3 aWord; attribute vec4 aPort; attribute vec3 aPortC;',
         'attribute vec3 aNetA; attribute vec3 aNetB; attribute vec3 aNetC; attribute vec3 aCol;',
         'attribute vec2 aFlowD; attribute vec2 aMisc;',
@@ -837,6 +838,14 @@ export default class OptimaScene {
         // formed shapes stay crisp — only a faint breathing remains
         '  float crisp = 1.0 - 0.85 * max(max(tessW, coreW), max(wordW, portW));',
         '  p += 0.025 * crisp * vec3(sin(uTime*0.7+seed*40.0), cos(uTime*0.55+seed*70.0), sin(uTime*0.85+seed*55.0));',
+        // cursor puff at the portrait: nearby particles drift aside
+        '  if (portW > 0.02) {',
+        '    vec4 pc = projectionMatrix * modelViewMatrix * vec4(p, 1.0);',
+        '    vec2 pn = pc.xy / max(0.1, pc.w);',
+        '    vec2 dmv = pn - uMouse;',
+        '    float push = smoothstep(0.24, 0.0, length(dmv)) * portW * 0.3;',
+        '    p.xy += normalize(dmv + vec2(1e-4)) * push;',
+        '  }',
         '  float ig = ss(uIntro);',
         '  p *= mix(1.7 + seed * 0.6, 1.0, ig);',
         '  vec4 mv = modelViewMatrix * vec4(p, 1.0);',
@@ -861,14 +870,21 @@ export default class OptimaScene {
         '  c = mix(c, portCol, w5);',
         '  vCol = c;',
         // ── per-stage alpha & size ──
-        '  float aStage = 1.0;',
-        '  aStage = mix(aStage, 0.8 * tessGlow, tessW);',
-        '  aStage = mix(aStage, 0.7 * coreGlow, coreW);',
-        '  aStage = mix(aStage, 0.55 + 0.35 * sweep, wordW);',
-        '  float portA = 0.13 + aPort.w * 0.5;',
+        // net stage runs BRIGHTER but SPARSER: half the particles hide
+        // while the net is on stage (≈3k visible), and the visible ones
+        // get an alpha boost; every later formation is dimmed so the DOM
+        // text stays dominant.
+        '  float netStageW = 1.0 - w1;',
+        '  float hideHalf = step(0.5, fract(seed * 23.371));',
+        '  float aStage = 1.0 + netStageW * 0.35;',
+        '  aStage = mix(aStage, 0.55 * tessGlow, tessW);',
+        '  aStage = mix(aStage, 0.5 * coreGlow, coreW);',
+        '  aStage = mix(aStage, 0.4 + 0.26 * sweep, wordW);',
+        '  float portA = 0.09 + aPort.w * 0.34;',
         '  vA = twP * ig * mix(aStage, portA, portW);',
+        '  vA *= 1.0 - netStageW * hideHalf;',
         '  float sizeStage = 1.0 + 0.35 * sphW + (0.25 * tessGlow) * tessW + (0.2 * coreGlow) * coreW + 0.1 * wordW;',
-        '  gl_PointSize = sizeBase * uPR * uVh * twP * sizeStage * mix(1.0, 0.5 + aPort.w * 0.85, portW) * (260.0 / -mv.z);',
+        '  gl_PointSize = sizeBase * uPR * uVh * twP * sizeStage * mix(1.0, 0.32 + aPort.w * 0.5, portW) * (260.0 / -mv.z);',
         '}',
       ].join('\n'),
       fragmentShader: [
@@ -1015,7 +1031,7 @@ export default class OptimaScene {
    */
   _buildPortraitExtra() {
     if (this.portExtra || !this.portPts) return
-    const M = window.innerWidth < 768 ? 3500 : PORTRAIT_EXTRA_COUNT
+    const M = window.innerWidth < 768 ? 9000 : PORTRAIT_EXTRA_COUNT
     const src = this.portPts
     const S = src.length / 7
     const tgt = new Float32Array(M * 4)
@@ -1024,9 +1040,10 @@ export default class OptimaScene {
     const seed = new Float32Array(M * 2)
     for (let i = 0; i < M; i++) {
       const s = ((Math.random() * S) | 0) * 7
-      tgt[i * 4] = src[s] + (Math.random() - 0.5) * 0.01
-      tgt[i * 4 + 1] = src[s + 1] + (Math.random() - 0.5) * 0.01
-      tgt[i * 4 + 2] = src[s + 2] + (Math.random() - 0.5) * 0.04
+      // generous depth jitter fills the bust as a volume, not a sheet
+      tgt[i * 4] = src[s] + (Math.random() - 0.5) * 0.015
+      tgt[i * 4 + 1] = src[s + 1] + (Math.random() - 0.5) * 0.015
+      tgt[i * 4 + 2] = src[s + 2] + (Math.random() - 0.5) * 0.16
       tgt[i * 4 + 3] = src[s + 3]
       col[i * 3] = src[s + 4]
       col[i * 3 + 1] = src[s + 5]
@@ -1053,9 +1070,10 @@ export default class OptimaScene {
         uPortW: { value: 0 },
         uPR: { value: Math.min(devicePixelRatio, 1.25) },
         uVh: { value: 1 },
+        uMouse: { value: new THREE.Vector2(9, 9) },
       },
       vertexShader: [
-        'uniform float uTime; uniform float uPortW; uniform float uPR; uniform float uVh;',
+        'uniform float uTime; uniform float uPortW; uniform float uPR; uniform float uVh; uniform vec2 uMouse;',
         'attribute vec4 aTgt; attribute vec3 aColor; attribute vec3 aScat; attribute vec2 aSeed;',
         'varying vec3 vCol; varying float vA;',
         'float ss(float x){ x = clamp(x, 0.0, 1.0); return x*x*(3.0-2.0*x); }',
@@ -1065,13 +1083,20 @@ export default class OptimaScene {
         '  float dr = uTime * 0.05 + aSeed.x * 6.2831;',
         '  vec3 sc = aScat + vec3(sin(dr), cos(dr * 0.7), sin(dr * 1.3)) * 0.35;',
         '  vec3 p = mix(sc, aTgt.xyz, e);',
-        '  p += 0.006 * vec3(sin(uTime*1.1+aSeed.x*50.0), cos(uTime*0.9+aSeed.y*60.0), sin(uTime*1.3+aSeed.x*70.0));',
+        // slow churn within the assembled mass
+        '  p += 0.013 * vec3(sin(uTime*0.8+aSeed.x*50.0), cos(uTime*0.7+aSeed.y*60.0), sin(uTime*0.9+aSeed.x*70.0));',
+        // cursor puff: particles near the pointer drift aside
+        '  vec4 pc = projectionMatrix * modelViewMatrix * vec4(p, 1.0);',
+        '  vec2 pn = pc.xy / max(0.1, pc.w);',
+        '  vec2 dmv = pn - uMouse;',
+        '  float push = smoothstep(0.24, 0.0, length(dmv)) * e * 0.3;',
+        '  p.xy += normalize(dmv + vec2(1e-4)) * push;',
         '  vec4 mv = modelViewMatrix * vec4(p, 1.0);',
         '  gl_Position = projectionMatrix * mv;',
         '  float tw = 0.85 + 0.15 * sin(uTime * (1.0 + aSeed.x * 2.0) + aSeed.y * 80.0);',
-        '  vA = e * uPortW * tw * (0.08 + aTgt.w * 0.38);',
-        '  vCol = aColor * (0.5 + aTgt.w * 0.65);',
-        '  gl_PointSize = (0.03 + aTgt.w * 0.05) * uPR * uVh * tw * (260.0 / -mv.z);',
+        '  vA = e * uPortW * tw * (0.07 + aTgt.w * 0.3);',
+        '  vCol = aColor * (0.55 + aTgt.w * 0.55);',
+        '  gl_PointSize = (0.022 + aTgt.w * 0.034) * uPR * uVh * tw * (260.0 / -mv.z);',
         '}',
       ].join('\n'),
       fragmentShader: [
@@ -1143,6 +1168,10 @@ export default class OptimaScene {
     U.uMorph.value = p
     U.uFlow.value = fs
     U.uIntro.value = s.intro
+    // pointer in NDC (y flipped: screen-down → NDC-up)
+    const pmx = s.pmx ?? 9
+    const pmy = s.pmy !== undefined ? -s.pmy : 9
+    U.uMouse.value.set(pmx, pmy)
 
     const netW = 1 - clamp01(p)
     const w4 = smooth(clamp01(p - 3))
@@ -1159,7 +1188,8 @@ export default class OptimaScene {
       stageChanged = true
     }
     this.pulse = (this.pulse || 0) * (s.snap ? 0 : 0.955)
-    if (this.bloom) this.bloom.strength = 0.55 + this.pulse * 0.7 + portW * 0.2 + netW * 0.12
+    // net gets extra bloom, everything after runs cooler
+    if (this.bloom) this.bloom.strength = 0.46 + this.pulse * 0.6 + portW * 0.12 + netW * 0.38
     if (this.gradePass) {
       this.gradePass.uniforms.uTime.value = time
       this.gradePass.uniforms.uCA.value = 1 + this.pulse * 7 + Math.min(3, Math.abs(s.velS) * 0.5)
@@ -1172,30 +1202,50 @@ export default class OptimaScene {
 
     if (this.netGroup) {
       this.netGroup.visible = netW > 0.02
-      this.netLines.material.opacity = netW * (0.1 + 0.03 * Math.sin(time * 1.4))
-      this.netNodesPts.material.opacity = netW * 0.8
-      this.netNodesPts.material.size = 0.055 + 0.008 * Math.sin(time * 2.3)
-      this.netCoresA.material.opacity = netW * (0.42 + 0.1 * Math.sin(time * 1.9))
-      this.netCoresA.material.size = 0.46 + 0.04 * Math.sin(time * 1.9)
-      this.netCoresB.material.opacity = netW * (0.27 + 0.05 * Math.sin(time * 2.6 + 1.3))
+      this.netLines.material.opacity = netW * (0.13 + 0.04 * Math.sin(time * 1.4))
+      this.netNodesPts.material.opacity = netW * 0.9
+      this.netNodesPts.material.size = 0.058 + 0.009 * Math.sin(time * 2.3)
+      this.netCoresA.material.opacity = netW * (0.5 + 0.12 * Math.sin(time * 1.9))
+      this.netCoresA.material.size = 0.48 + 0.045 * Math.sin(time * 1.9)
+      this.netCoresB.material.opacity = netW * (0.32 + 0.06 * Math.sin(time * 2.6 + 1.3))
     }
 
     if (this.portExtra) {
       this.portExtra.visible = portW > 0.01
       this.portExtraMat.uniforms.uTime.value = time
       this.portExtraMat.uniforms.uPortW.value = portW
+      this.portExtraMat.uniforms.uMouse.value.set(pmx, pmy)
     }
 
     // drifting mist — everywhere except the neural-net stage, and at its
-    // THICKEST around the developer portrait (the figure emerges from it)
+    // THICKEST around the developer portrait (the figure emerges from it).
+    // Fog banks near the cursor puff aside with a springy offset.
     if (this.smoke) {
-      const smokeO = (1 - netW) * (1 + portW * 0.85) * s.intro
+      const smokeO = (1 - netW) * (1 + portW * 0.85) * s.intro * 0.78
+      if (!this._smokeV) this._smokeV = new THREE.Vector3()
+      const sv = this._smokeV
+      const hasMouse = pmx < 5
       for (let i = 0; i < this.smoke.length; i++) {
         const m = this.smoke[i]
-        m.s.material.opacity = Math.min(0.3, m.baseO * smokeO * (0.75 + 0.25 * Math.sin(time * 0.1 + m.drift)))
+        m.s.material.opacity = Math.min(0.24, m.baseO * smokeO * (0.75 + 0.25 * Math.sin(time * 0.1 + m.drift)))
         m.s.material.rotation += m.rot
-        m.s.position.y = m.y0 + Math.sin(time * 0.06 + m.drift) * 0.4
-        m.s.position.x = m.x0 + Math.sin(time * 0.04 + m.drift * 1.7) * 0.5
+        m.ox = m.ox || 0
+        m.oy = m.oy || 0
+        if (hasMouse) {
+          sv.copy(m.s.position).project(this.camera)
+          const dx = sv.x - pmx
+          const dy = sv.y - pmy
+          const dd = Math.sqrt(dx * dx + dy * dy)
+          if (dd < 0.4 && dd > 1e-4) {
+            const f = ((0.4 - dd) / 0.4) * 0.028
+            m.ox += (dx / dd) * f
+            m.oy += (dy / dd) * f
+          }
+        }
+        m.ox *= 0.93
+        m.oy *= 0.93
+        m.s.position.y = m.y0 + Math.sin(time * 0.06 + m.drift) * 0.4 + m.oy
+        m.s.position.x = m.x0 + Math.sin(time * 0.04 + m.drift * 1.7) * 0.5 + m.ox
       }
     }
 
@@ -1254,9 +1304,9 @@ export default class OptimaScene {
       this.camera.updateProjectionMatrix()
     }
 
-    // terrain reveal (once the net dissolves); dims while the wordmark and
-    // portrait own the frame
-    const tw = s.intro * (1 - netW) * (1 - wordW * 0.35 - portW * 0.55)
+    // terrain reveal (once the net dissolves); globally dimmed so the DOM
+    // text leads, and further while the wordmark / portrait own the frame
+    const tw = s.intro * (1 - netW) * (1 - wordW * 0.35 - portW * 0.55) * 0.82
     if (this.terrMat) {
       this.terrain.visible = tw > 0.01
       this.terrMat.uniforms.uTime.value = time

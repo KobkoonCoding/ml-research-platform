@@ -209,12 +209,13 @@ export default function useLandingEngine({ sectionIds }) {
     const secEls = sectionIds.map((id) => root.querySelector('#' + id))
     const devEl = root.querySelector('#developer')
     const cleanEl = root.querySelector('#clean')
-    const ctaEl = root.querySelector('#cta')
+    const galleryEl = root.querySelector('#gallery')
     const plxEls = [...root.querySelectorAll('[data-plx]')]
     const heroSteps = [...root.querySelectorAll('[data-hero-step]')].map((el) => ({ el, kids: [...el.children] }))
 
     /* ── cursor + sound-on-hover ──────────────────────────────── */
     const onPointerMove = (e) => {
+      S.hasPtr = true
       S.cx = e.clientX
       S.cy = e.clientY
       S.tmx = (e.clientX / window.innerWidth) * 2 - 1
@@ -363,12 +364,13 @@ export default function useLandingEngine({ sectionIds }) {
       }
 
       // mid-page stages anchor to their sections: tesseract → AI core as
-      // the first module scrolls in, core → NEXUS wordmark at the CTA
+      // the first module scrolls in, core → NEXUS wordmark at the showcase
+      // (so the core and the wordmark split the mid-page roughly in half)
       const mCore = cleanEl
         ? smooth(clamp01((vh * 0.9 - cleanEl.getBoundingClientRect().top) / (vh * 0.8)))
         : 0
-      const mWord = ctaEl
-        ? smooth(clamp01((vh * 0.95 - ctaEl.getBoundingClientRect().top) / (vh * 0.85)))
+      const mWord = galleryEl
+        ? smooth(clamp01((vh * 0.9 - galleryEl.getBoundingClientRect().top) / (vh * 0.85)))
         : 0
 
       // final stage: wordmark → developer portrait as the last section
@@ -479,6 +481,8 @@ export default function useLandingEngine({ sectionIds }) {
           my: S.my,
           velS: S.velS,
           shiftX: S.shiftX || 0,
+          pmx: S.hasPtr ? S.tmx : 9,
+          pmy: S.hasPtr ? S.tmy : 9,
           snap: false,
         })
         if (res && res.stageChanged) sound.chime()
@@ -509,6 +513,8 @@ export default function useLandingEngine({ sectionIds }) {
             my: S.my,
             velS: S.velS,
             shiftX: S.shiftX || 0,
+          pmx: S.hasPtr ? S.tmx : 9,
+          pmy: S.hasPtr ? S.tmy : 9,
             snap: true,
           })
       }
@@ -547,6 +553,8 @@ export default function useLandingEngine({ sectionIds }) {
           my: 0,
           velS: 0,
           shiftX: S.shiftX || 0,
+          pmx: S.hasPtr ? S.tmx : 9,
+          pmy: S.hasPtr ? S.tmy : 9,
           snap: true,
         })
         return engine.renderer.domElement.toDataURL('image/jpeg', 0.6)

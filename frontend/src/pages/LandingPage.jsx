@@ -652,7 +652,7 @@ export default function LandingPage() {
               textShadow: '0 0 44px rgba(4,5,9,0.96),0 2px 14px rgba(4,5,9,0.92)',
             }}
           >
-            <div className="lv2-label" style={{ marginTop: '10vh', marginBottom: 18 }}>Where Mathematics Meets Machine Learning</div>
+            <div className="lv2-label" style={{ marginTop: '19vh', marginBottom: 18 }}>Where Mathematics Meets Machine Learning</div>
             <h1
               className="lv2-serif"
               style={{ fontWeight: 200, lineHeight: 0.96, letterSpacing: '-0.025em', fontSize: 'clamp(2.2rem,4.8vw,4.6rem)' }}
