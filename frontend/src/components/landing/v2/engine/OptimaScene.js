@@ -103,7 +103,8 @@ export default class OptimaScene {
     this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace
 
     this.scene = new THREE.Scene()
-    this.scene.fog = new THREE.FogExp2(0x06070c, 0.052)
+    // fog tinted to the sky's horizon so distant points fade into it
+    this.scene.fog = new THREE.FogExp2(0x0b0b1a, 0.048)
     this.camera = new THREE.PerspectiveCamera(50, w / h, 0.1, 100)
     this.camera.position.z = 4.5
     this._camP = [0, 0.3, 5.2]
@@ -123,6 +124,7 @@ export default class OptimaScene {
     }
 
     this.sprite = this._makeSprite()
+    this._buildSky()
     this._buildStars()
     this._buildTerrain()
     this._buildPost(w, h)
@@ -248,6 +250,51 @@ export default class OptimaScene {
       })
     )
     this.scene.add(this.stars)
+  }
+
+  /**
+   * Gradient sky dome — replaces the flat black void with a night sky:
+   * deep navy overhead easing to a violet/rose dawn glow at the horizon,
+   * with a soft radial bloom where the "sun" sits just below it. Rendered
+   * first, depth-write off, so everything else layers over it.
+   */
+  _buildSky() {
+    const geo = new THREE.SphereGeometry(60, 32, 20)
+    this.skyMat = new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      depthWrite: false,
+      fog: false,
+      uniforms: {
+        uTop: { value: new THREE.Color(0.015, 0.02, 0.05) },
+        uHorizon: { value: new THREE.Color(0.11, 0.09, 0.2) },
+        uGlow: { value: new THREE.Color(0.42, 0.24, 0.34) },
+        uReveal: { value: 0 },
+      },
+      vertexShader: [
+        'varying vec3 vDir;',
+        'void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      ].join('\n'),
+      fragmentShader: [
+        'uniform vec3 uTop; uniform vec3 uHorizon; uniform vec3 uGlow; uniform float uReveal;',
+        'varying vec3 vDir;',
+        'void main(){',
+        '  float h = clamp(vDir.y * 1.4 + 0.28, 0.0, 1.0);',
+        // navy overhead -> violet band near the horizon
+        '  vec3 col = mix(uHorizon, uTop, pow(h, 0.6));',
+        // dawn bloom sitting a touch below the horizon, front of camera
+        '  float sun = pow(clamp(1.0 - abs(vDir.y + 0.06) * 3.2, 0.0, 1.0), 2.2)',
+        '           * smoothstep(-0.5, 0.4, vDir.z);',
+        '  col += uGlow * sun * 0.9;',
+        // a second cooler bloom low and wide so the horizon never goes flat
+        '  col += uHorizon * pow(clamp(1.0 - abs(vDir.y) * 2.2, 0.0, 1.0), 3.0) * 0.5;',
+        '  gl_FragColor = vec4(col * (0.35 + 0.65 * uReveal), 1.0);',
+        '}',
+      ].join('\n'),
+    })
+    this.sky = new THREE.Mesh(geo, this.skyMat)
+    this.sky.frustumCulled = false
+    this.sky.renderOrder = -10
+    this.scene.add(this.sky)
   }
 
   /** Soft fbm smoke puff with a radial falloff — tinted per sprite. */
@@ -442,10 +489,13 @@ export default class OptimaScene {
     geo.computeVertexNormals()
     this.terrMat = new THREE.ShaderMaterial({
       uniforms: {
-        uLow: { value: new THREE.Vector3(0.009, 0.032, 0.09) },
-        uHigh: { value: new THREE.Vector3(0.034, 0.13, 0.22) },
-        uContour: { value: new THREE.Vector3(0.17, 0.52, 0.6) },
-        uFog: { value: new THREE.Vector3(0.023, 0.028, 0.047) },
+        // Terrain was ~0.03 albedo — nearly black. Lifted ~2x and warmed
+        // toward the dawn sky so it reads as lit ground, not a void.
+        uLow: { value: new THREE.Vector3(0.018, 0.05, 0.12) },
+        uHigh: { value: new THREE.Vector3(0.07, 0.2, 0.34) },
+        uContour: { value: new THREE.Vector3(0.24, 0.62, 0.72) },
+        // distance fog tinted to the horizon so ground melts into the sky
+        uFog: { value: new THREE.Vector3(0.05, 0.045, 0.085) },
         uCamPos: { value: new THREE.Vector3() },
         uTime: { value: 0 },
         uReveal: { value: 0 },
@@ -773,9 +823,13 @@ export default class OptimaScene {
         uMouse: { value: new THREE.Vector2(9, 9) },
         uStir: { value: 0 },
         uBoost: { value: this.usePost ? 1 : NO_BLOOM_BOOST },
+        // Depth of field: focus view-depth + aperture. Particles off the
+        // focal plane grow and soften into bokeh. Off on small devices.
+        uFocus: { value: 4.6 },
+        uDof: { value: this.small ? 0 : 0.5 },
       },
       vertexShader: [
-        'uniform float uTime; uniform float uMorph; uniform float uFlow; uniform float uIntro; uniform float uPR; uniform float uVh; uniform vec2 uMouse; uniform float uStir; uniform float uBoost;',
+        'uniform float uTime; uniform float uMorph; uniform float uFlow; uniform float uIntro; uniform float uPR; uniform float uVh; uniform vec2 uMouse; uniform float uStir; uniform float uBoost; uniform float uFocus; uniform float uDof;',
         'attribute vec3 aWord; attribute vec4 aPort; attribute vec3 aPortC;',
         'attribute vec3 aNetA; attribute vec3 aNetB; attribute vec3 aNetC; attribute vec3 aCol;',
         'attribute vec2 aFlowD; attribute vec2 aMisc;',
@@ -911,6 +965,11 @@ export default class OptimaScene {
         '  vA *= 1.0 - netStageW * hideHalf;',
         '  float sizeStage = 1.0 + 0.35 * sphW + (0.25 * tessGlow) * tessW + (0.2 * coreGlow) * coreW + 0.1 * wordW;',
         '  gl_PointSize = sizeBase * uPR * uVh * twP * sizeStage * mix(1.0, 0.32 + aPort.w * 0.5, portW) * (260.0 / -mv.z);',
+        // depth of field: circle of confusion from the focal plane. Off-focus
+        // points grow (bokeh) and dim (energy spread over more pixels).
+        '  float coc = clamp(abs((-mv.z) - uFocus) * uDof, 0.0, 3.2);',
+        '  gl_PointSize *= 1.0 + coc;',
+        '  vA /= 1.0 + coc * 1.35;',
         '}',
       ].join('\n'),
       fragmentShader: [
@@ -1104,9 +1163,11 @@ export default class OptimaScene {
         uMouse: { value: new THREE.Vector2(9, 9) },
         uStir: { value: 0 },
         uBoost: { value: this.usePost ? 1 : NO_BLOOM_BOOST },
+        uFocus: { value: 4.6 },
+        uDof: { value: this.small ? 0 : 0.5 },
       },
       vertexShader: [
-        'uniform float uTime; uniform float uPortW; uniform float uPR; uniform float uVh; uniform vec2 uMouse; uniform float uStir; uniform float uBoost;',
+        'uniform float uTime; uniform float uPortW; uniform float uPR; uniform float uVh; uniform vec2 uMouse; uniform float uStir; uniform float uBoost; uniform float uFocus; uniform float uDof;',
         'attribute vec4 aTgt; attribute vec3 aColor; attribute vec3 aScat; attribute vec2 aSeed;',
         'varying vec3 vCol; varying float vA;',
         'float ss(float x){ x = clamp(x, 0.0, 1.0); return x*x*(3.0-2.0*x); }',
@@ -1134,6 +1195,10 @@ export default class OptimaScene {
         '  vA = e * uPortW * tw * (0.075 + aTgt.w * 0.2) * uBoost;',
         '  vCol = aColor * (0.5 + aTgt.w * 0.42);',
         '  gl_PointSize = (0.028 + aTgt.w * 0.042) * uPR * uVh * tw * (260.0 / -mv.z);',
+        // same depth-of-field CoC as the main cloud
+        '  float coc = clamp(abs((-mv.z) - uFocus) * uDof, 0.0, 3.2);',
+        '  gl_PointSize *= 1.0 + coc;',
+        '  vA /= 1.0 + coc * 1.35;',
         '}',
       ].join('\n'),
       fragmentShader: [
@@ -1190,6 +1255,10 @@ export default class OptimaScene {
         this.portExtraMat.uniforms.uPR.value = 1
         this.portExtraMat.uniforms.uBoost.value = NO_BLOOM_BOOST
       }
+      // depth of field grows point sizes (more fill) — drop it once we're
+      // already fighting for frames
+      if (this.pMat) this.pMat.uniforms.uDof.value = 0
+      if (this.portExtraMat) this.portExtraMat.uniforms.uDof.value = 0
       this.setSize(window.innerWidth, window.innerHeight)
     }
     if (level === 2) {
@@ -1373,21 +1442,31 @@ export default class OptimaScene {
     const roll = s.velS * 0.004 + Math.sin(time * 0.13) * 0.008
     this.camera.up.set(Math.sin(roll), Math.cos(roll), 0)
     this.camera.lookAt(this._camL[0], this._camL[1], this._camL[2])
+    // Keep whatever the camera is aimed at (always the formed object) in
+    // focus: DOF focal depth = camera→lookAt distance, offset by the
+    // world's own vertical drift so the object stays sharp as it sinks.
+    const fdx = this._camP[0] - this._camL[0]
+    const fdy = this._camP[1] - this._camL[1] - this.world.position.y
+    const fdz = this._camP[2] - this._camL[2]
+    U.uFocus.value = Math.sqrt(fdx * fdx + fdy * fdy + fdz * fdz)
+    if (this.portExtraMat) this.portExtraMat.uniforms.uFocus.value = U.uFocus.value
     const fovT = 50 + Math.max(0, 1.15 - asp) * 16 + Math.min(4, Math.abs(s.velS) * 0.9)
     if (Math.abs(this.camera.fov - fovT) > 0.05) {
       this.camera.fov += (fovT - this.camera.fov) * 0.1
       this.camera.updateProjectionMatrix()
     }
 
-    // terrain reveal (once the net dissolves); globally dimmed so the DOM
-    // text leads, and further while the wordmark / portrait own the frame
-    const tw = s.intro * (1 - netW) * (1 - wordW * 0.35 - portW * 0.55) * 0.82
+    // terrain reveal (once the net dissolves); eased under the wordmark /
+    // portrait so those stages own the frame, but no longer globally dimmed
+    const tw = s.intro * (1 - netW) * (1 - wordW * 0.3 - portW * 0.45)
     if (this.terrMat) {
       this.terrain.visible = tw > 0.01
       this.terrMat.uniforms.uTime.value = time
       this.terrMat.uniforms.uCamPos.value.copy(this.camera.position)
       this.terrMat.uniforms.uReveal.value = tw
     }
+    // the sky fades in with the intro and stays up the rest of the page
+    if (this.skyMat) this.skyMat.uniforms.uReveal.value = s.intro * (0.55 + 0.45 * (1 - netW))
     if (this.descPts && this.descPoints.visible && tw > 0.02) {
       const e2 = 0.4
       const sp2 = 0.045 * fs
