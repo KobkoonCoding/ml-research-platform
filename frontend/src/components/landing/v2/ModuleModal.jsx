@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 /**
- * Module-selection modal ("Get Started" / "Initialize System").
+ * Module-selection modal (opened by "Get Started" / the CTA).
  * Same three destinations as landing v1, restyled for the Optima design
  * language — glass panel, serif headings, single blue accent.
  */
@@ -122,17 +122,17 @@ export default function ModuleModal({ open, onClose }) {
           style={{
             position: 'absolute', top: 18, right: 18, width: 38, height: 38,
             borderRadius: '50%', border: '1px solid rgba(255,255,255,0.12)',
-            background: 'rgba(255,255,255,0.04)', color: '#8890a3',
+            background: 'rgba(255,255,255,0.04)', color: 'var(--lv2-ink-4)',
             fontSize: 16, cursor: 'pointer', lineHeight: 1,
           }}
         >
           ×
         </button>
-        <div className="lv2-label" style={{ marginBottom: 14 }}>Initialize</div>
-        <h3 className="lv2-serif" style={{ fontWeight: 250, fontSize: 'clamp(1.6rem,3.2vw,2.4rem)', letterSpacing: '-0.02em' }}>
+        <div className="lv2-label" style={{ marginBottom: 14 }}>Choose a module</div>
+        <h3 className="lv2-serif" style={{ fontWeight: 300, fontSize: 'clamp(1.6rem,3.2vw,2.4rem)', letterSpacing: '-0.02em' }}>
           Where do you want to <span className="lv2-gradient-text">begin?</span>
         </h3>
-        <p style={{ color: '#aab3c5', fontSize: 14.5, marginTop: 10 }}>
+        <p style={{ color: 'var(--lv2-ink-3)', fontSize: 'var(--lv2-fs-4)', marginTop: 10 }}>
           Three modules, one workflow — clean, train, try.
         </p>
         <div
@@ -162,17 +162,17 @@ export default function ModuleModal({ open, onClose }) {
               <div className="lv2-serif" style={{ fontWeight: 400, fontSize: '1.15rem', marginTop: 12, letterSpacing: '-0.01em' }}>
                 {m.title}
               </div>
-              <div style={{ color: '#8fb6ff', fontSize: 12.5, fontStyle: 'italic', marginTop: 5 }}>{m.tagline}</div>
+              <div style={{ color: '#8fb6ff', fontSize: 'var(--lv2-fs-2)', fontStyle: 'italic', marginTop: 5 }}>{m.tagline}</div>
               <ul style={{ listStyle: 'none', padding: 0, marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {m.features.map((f) => (
-                  <li key={f} style={{ display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 13, color: '#c6cddc' }}>
+                  <li key={f} style={{ display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 'var(--lv2-fs-3)', color: 'var(--lv2-ink-2)' }}>
                     <span style={{ color: '#6da8ff' }}>—</span>
                     {f}
                   </li>
                 ))}
               </ul>
-              <div style={{ marginTop: 12, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#8890a3' }}>
-                Best for: <span style={{ color: '#aab3c5' }}>{m.bestFor}</span>
+              <div style={{ marginTop: 12, fontSize: 'var(--lv2-fs-1)', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lv2-ink-4)' }}>
+                Best for: <span style={{ color: 'var(--lv2-ink-3)' }}>{m.bestFor}</span>
               </div>
             </button>
           ))}

@@ -806,8 +806,8 @@ export default class OptimaScene {
         '    float rr = 0.26 * pow(fract(seed * 17.3), 0.34) * (1.0 + 0.06 * sin(uTime * 2.6));',
         '    core = dirN * rr + vec3(0.0, 0.12, 0.0);',
         '    coreGlow = 1.15;',
-        // golden-white reactor heart
-        '    coreCol = vec3(1.12, 0.98, 0.72);',
+        // warm heart, matching the UI's single warm accent (#ffd9a8)
+        '    coreCol = vec3(1.0, 0.88, 0.7);',
         '  } else if (kind < 0.82) {',
         '    float ri = floor((kind - 0.2) * 4.83);',
         // decorrelated angle so each ring fills evenly instead of clumping
@@ -822,8 +822,8 @@ export default class OptimaScene {
         '    ring = vec3(ring.x * cy + ring.z * sy, ring.y, -ring.x * sy + ring.z * cy);',
         '    core = ring + vec3(0.0, 0.12, 0.0);',
         '    coreGlow = 0.95;',
-        // rings sweep cyan → magenta from inner to outer
-        '    coreCol = mix(vec3(0.3, 0.9, 1.1), vec3(0.95, 0.42, 1.02), ri * 0.5);',
+        // rings sweep the palette's blue → its violet accent (#b79dff)
+        '    coreCol = mix(vec3(0.43, 0.66, 1.0), vec3(0.72, 0.62, 1.0), ri * 0.5);',
         '  } else {',
         '    vec3 dirD = normalize(vec3(sin(seed*77.0), 0.35 * sin(seed*141.0), cos(seed*99.0)) + 1e-3);',
         '    float raD = 1.7 + fract(seed * 31.7) * 0.7;',
@@ -877,8 +877,9 @@ export default class OptimaScene {
         '  float formedW = max(max(tessW, coreW), max(wordW, portW));',
         '  float sizeBase = mix(aMisc.y, min(aMisc.y, 0.062), formedW);',
         // ── per-stage color ──
-        // tesseract: deep electric violet far → glowing cyan near (4th-D depth cue)
-        '  vec3 tessCol = mix(vec3(0.5, 0.34, 1.05), vec3(0.5, 1.0, 1.12), clamp((persp - 0.72) * 1.5, 0.0, 1.0));',
+        // tesseract: depth cue stays inside the page palette — muted
+        // indigo far, soft #dfe9ff near (no neon)
+        '  vec3 tessCol = mix(vec3(0.34, 0.42, 0.78), vec3(0.82, 0.9, 1.02), clamp((persp - 0.72) * 1.5, 0.0, 1.0));',
         '  float wnx = clamp(aWord.x / 3.6 + 0.5, 0.0, 1.0);',
         '  float sweep = 0.7 + 0.5 * sin(uTime * 1.2 - wnx * 5.2);',
         '  vec3 wordCol = mix(vec3(0.87, 0.92, 1.05), vec3(0.49, 0.65, 1.0), wnx) * sweep;',

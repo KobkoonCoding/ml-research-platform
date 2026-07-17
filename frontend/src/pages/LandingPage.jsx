@@ -198,8 +198,8 @@ const moduleH3Style = {
 }
 
 const moduleParaStyle = {
-  color: '#c6cddc',
-  fontSize: 'clamp(15.5px,1.25vw,17.5px)',
+  color: 'var(--lv2-ink-2)',
+  fontSize: 'clamp(var(--lv2-fs-4),1.25vw,var(--lv2-fs-5))',
   lineHeight: 1.65,
   maxWidth: '44ch',
   marginTop: 22,
@@ -211,7 +211,7 @@ const featureListStyle = {
   display: 'flex',
   flexDirection: 'column',
   gap: 12,
-  fontSize: 15.5,
+  fontSize: 'var(--lv2-fs-4)',
   padding: 0,
 }
 
@@ -295,7 +295,7 @@ function ShowcaseIndex() {
             >
               Optimized in the <span style={{ fontStyle: 'italic' }}>wild.</span>
             </h2>
-            <p style={{ color: '#aab3c5', marginTop: 18, fontSize: 15, lineHeight: 1.6, maxWidth: '52ch' }}>
+            <p style={{ color: 'var(--lv2-ink-3)', marginTop: 18, fontSize: 'var(--lv2-fs-4)', lineHeight: 1.6, maxWidth: '52ch' }}>
               Eight live models across vision, medical imaging, and detection —
               pick one and try it with your own image.
             </p>
@@ -476,8 +476,8 @@ export default function LandingPage() {
           </div>
           <div
             style={{
-              fontSize: 11, letterSpacing: '0.32em', textTransform: 'uppercase',
-              color: '#7d879c', marginTop: 26,
+              fontSize: 'var(--lv2-fs-1)', letterSpacing: '0.32em', textTransform: 'uppercase',
+              color: 'var(--lv2-ink-4)', marginTop: 26,
             }}
           >
             Where Mathematics Meets Machine Learning
@@ -585,7 +585,7 @@ export default function LandingPage() {
             data-nav-desktop
             onClick={() => setModalOpen(true)}
             className="lv2-pill-solid"
-            style={{ padding: '10px 22px', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', border: 'none' }}
+            style={{ padding: '10px 22px', cursor: 'pointer', fontSize: 'var(--lv2-fs-3)', fontFamily: 'inherit', border: 'none' }}
           >
             Get Started
           </button>
@@ -690,7 +690,7 @@ export default function LandingPage() {
             <p
               style={{
                 margin: '16px auto 0', maxWidth: 640, padding: '0 20px',
-                fontSize: 'clamp(14px,1.2vw,17px)', lineHeight: 1.6, color: '#ccd3e2',
+                fontSize: 'clamp(var(--lv2-fs-4),1.2vw,var(--lv2-fs-5))', lineHeight: 1.6, color: 'var(--lv2-ink-2)',
               }}
             >
               A no-code research platform where mathematical optimization powers machine
@@ -757,11 +757,11 @@ export default function LandingPage() {
             style={{
               position: 'absolute', bottom: 34, left: '50%', transform: 'translateX(-50%)',
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
-              fontSize: 10.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: '#7d879c',
+              fontSize: 'var(--lv2-fs-1)', letterSpacing: '0.24em', textTransform: 'uppercase', color: 'var(--lv2-ink-4)',
             }}
           >
             <span>Scroll</span>
-            <div style={{ width: 1, height: 34, background: 'linear-gradient(#7d879c,transparent)', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ width: 1, height: 34, background: 'linear-gradient(var(--lv2-ink-4),transparent)', position: 'relative', overflow: 'hidden' }}>
               <span className="lv2-scrolldot-anim" style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 8, background: '#6da8ff', animation: 'lv2-scrolldot 1.8s infinite' }} />
             </div>
           </div>
@@ -777,7 +777,7 @@ export default function LandingPage() {
           maxWidth: 1300, margin: '0 auto', textAlign: 'center',
         }}
       >
-        <div className="lv2-label" style={{ color: '#7d879c', marginBottom: 46 }}>The thesis</div>
+        <div className="lv2-label" style={{ color: 'var(--lv2-ink-4)', marginBottom: 46 }}>The thesis</div>
         <p
           className="lv2-serif"
           style={{
@@ -810,13 +810,13 @@ export default function LandingPage() {
               }}
             >
               <div className="lv2-serif" style={{ fontWeight: 300, fontSize: '2.4rem', letterSpacing: '-0.02em' }}>{s.big}</div>
-              <div style={{ color: '#aab3c5', fontSize: 13.5, lineHeight: 1.5, marginTop: 6, maxWidth: '22ch' }}>{s.small}</div>
+              <div style={{ color: 'var(--lv2-ink-3)', fontSize: 'var(--lv2-fs-3)', lineHeight: 1.5, marginTop: 6, maxWidth: '22ch' }}>{s.small}</div>
             </div>
           ))}
         </div>
         <Link
           to="/about"
-          style={{ display: 'inline-block', marginTop: 42, fontSize: 14, color: '#8fb6ff', letterSpacing: '0.04em' }}
+          style={{ display: 'inline-block', marginTop: 42, fontSize: 'var(--lv2-fs-4)', color: '#8fb6ff', letterSpacing: '0.04em' }}
         >
           Read the full story →
         </Link>
@@ -869,10 +869,10 @@ export default function LandingPage() {
               <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,255,255,0.15)' }} />
               <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,255,255,0.15)' }} />
               <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,255,255,0.15)' }} />
-              <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 11.5, color: '#8890a3', marginLeft: 8 }}>dataset_preview.csv</span>
+              <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 'var(--lv2-fs-1)', color: 'var(--lv2-ink-4)', marginLeft: 8 }}>dataset_preview.csv</span>
             </div>
             <div style={{ flex: 1, padding: 'clamp(10px,1.6vw,20px)', overflow: 'hidden' }}>
-              <table aria-hidden="true" style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'ui-monospace,monospace', fontSize: 'clamp(10px,1vw,12.5px)', color: '#b6bdcc' }}>
+              <table aria-hidden="true" style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'ui-monospace,monospace', fontSize: 'clamp(var(--lv2-fs-1),1vw,var(--lv2-fs-2))', color: 'var(--lv2-ink-3)' }}>
                 <thead>
                   <tr style={{ color: '#6da8ff', textAlign: 'left' }}>
                     {['id', 'age', 'income', 'city', 'target'].map((h) => (
@@ -917,7 +917,7 @@ export default function LandingPage() {
             <div
               style={{
                 padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.08)',
-                fontFamily: 'ui-monospace,monospace', fontSize: 11.5, color: '#8890a3',
+                fontFamily: 'ui-monospace,monospace', fontSize: 'var(--lv2-fs-1)', color: 'var(--lv2-ink-4)',
                 display: 'flex', alignItems: 'center', gap: 8,
               }}
             >
@@ -944,7 +944,7 @@ export default function LandingPage() {
             <span
               style={{
                 position: 'absolute', bottom: 16, left: 16,
-                fontFamily: 'ui-monospace,monospace', fontSize: 11.5, color: '#8890a3',
+                fontFamily: 'ui-monospace,monospace', fontSize: 'var(--lv2-fs-1)', color: 'var(--lv2-ink-4)',
               }}
             >
               gradient_descent · scrub ↓
@@ -997,7 +997,7 @@ export default function LandingPage() {
               <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,255,255,0.15)' }} />
               <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,255,255,0.15)' }} />
               <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,255,255,0.15)' }} />
-              <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 11.5, color: '#8890a3', marginLeft: 8 }}>model-hub · prediction</span>
+              <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 'var(--lv2-fs-1)', color: 'var(--lv2-ink-4)', marginLeft: 8 }}>model-hub · prediction</span>
             </div>
             <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div data-reveal style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', aspectRatio: '16/9' }}>
@@ -1011,7 +1011,7 @@ export default function LandingPage() {
                 <span
                   style={{
                     position: 'absolute', bottom: 10, left: 10, fontFamily: 'ui-monospace,monospace',
-                    fontSize: 11, color: '#b6bdcc', background: 'rgba(6,7,12,0.7)', padding: '4px 8px', borderRadius: 6,
+                    fontSize: 'var(--lv2-fs-1)', color: 'var(--lv2-ink-3)', background: 'rgba(6,7,12,0.7)', padding: '4px 8px', borderRadius: 6,
                   }}
                 >
                   input.jpg · 224×224
@@ -1023,7 +1023,7 @@ export default function LandingPage() {
                 { label: 'Egyptian cat', conf: 0.02 },
               ].map((r) => (
                 <div key={r.label} data-reveal style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 12.5, color: '#c6cddc', width: 110, flexShrink: 0 }}>
+                  <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 'var(--lv2-fs-2)', color: 'var(--lv2-ink-2)', width: 110, flexShrink: 0 }}>
                     {r.label}
                   </span>
                   <div style={{ flex: 1, height: 7, borderRadius: 4, background: 'rgba(255,255,255,0.07)', overflow: 'hidden' }}>
@@ -1034,7 +1034,7 @@ export default function LandingPage() {
                       }}
                     />
                   </div>
-                  <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 12.5, color: '#8fb6ff', width: 42, textAlign: 'right' }}>
+                  <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 'var(--lv2-fs-2)', color: '#8fb6ff', width: 42, textAlign: 'right' }}>
                     {r.conf.toFixed(2)}
                   </span>
                 </div>
@@ -1050,17 +1050,17 @@ export default function LandingPage() {
       {/* ═══ CTA ═══ */}
       <section id="cta" style={{ position: 'relative', zIndex: 2, padding: 'clamp(100px,16vh,190px) clamp(20px,7vw,120px)', textAlign: 'center' }}>
         <div data-reveal style={{ maxWidth: 1000, margin: '0 auto' }}>
-          <div className="lv2-label" style={{ marginBottom: 32 }}>08 — Converge · Research platform</div>
+          <div className="lv2-label" style={{ marginBottom: 32 }}>08 — Converge</div>
           <h2
             className="lv2-serif"
             style={{ fontWeight: 200, fontSize: 'clamp(2.8rem,9vw,7.5rem)', lineHeight: 0.94, letterSpacing: '-0.03em' }}
           >
-            Ready to <span className="lv2-gradient-text">compile?</span>
+            Ready to <span className="lv2-gradient-text">begin?</span>
           </h2>
           <p
             style={{
-              color: '#c6cddc', maxWidth: '44ch', margin: '30px auto 0',
-              fontSize: 'clamp(15px,1.3vw,18px)', lineHeight: 1.65,
+              color: 'var(--lv2-ink-2)', maxWidth: '44ch', margin: '30px auto 0',
+              fontSize: 'clamp(var(--lv2-fs-4),1.3vw,var(--lv2-fs-5))', lineHeight: 1.65,
             }}
           >
             From raw data to trained models to live predictions — no code required.
@@ -1071,9 +1071,9 @@ export default function LandingPage() {
               data-magnet
               onClick={() => setModalOpen(true)}
               className="lv2-pill-solid"
-              style={{ padding: '15px 34px', fontSize: 15, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+              style={{ padding: '15px 34px', fontSize: 'var(--lv2-fs-4)', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
             >
-              Initialize System
+              Start with your data
             </button>
             <Link to="/deep-learning" data-magnet className="lv2-pill" style={{ padding: '15px 34px', fontSize: 15 }}>
               Try AI Models
@@ -1097,11 +1097,11 @@ export default function LandingPage() {
             <div className="lv2-label" style={{ marginTop: 16 }}>The researcher</div>
             <h3 className="lv2-serif" style={{ ...moduleH3Style, marginTop: 14 }}>{DEVELOPER_PROFILE.name}</h3>
             <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <span style={{ color: '#8fb6ff', fontSize: 13.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              <span style={{ color: '#8fb6ff', fontSize: 'var(--lv2-fs-3)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                 {DEVELOPER_PROFILE.role}
               </span>
-              <span style={{ color: '#7d879c' }}>·</span>
-              <span style={{ color: '#aab3c5', fontSize: 13.5 }}>{DEVELOPER_PROFILE.affiliation}</span>
+              <span style={{ color: 'var(--lv2-ink-4)' }}>·</span>
+              <span style={{ color: 'var(--lv2-ink-3)', fontSize: 13.5 }}>{DEVELOPER_PROFILE.affiliation}</span>
             </div>
             <p style={{ ...moduleParaStyle, fontStyle: 'italic' }}>“{DEVELOPER_PROFILE.bio}”</p>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 28 }}>
@@ -1133,7 +1133,7 @@ export default function LandingPage() {
             maxWidth: 1300, margin: 'clamp(80px,12vh,140px) auto 0', paddingTop: 36,
             borderTop: '1px solid rgba(255,255,255,0.1)',
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            flexWrap: 'wrap', gap: 20, color: '#7d879c', fontSize: 13,
+            flexWrap: 'wrap', gap: 20, color: 'var(--lv2-ink-4)', fontSize: 'var(--lv2-fs-3)',
           }}
         >
           <div className="lv2-serif" style={{ fontSize: 20, color: '#eef1f8' }}>
