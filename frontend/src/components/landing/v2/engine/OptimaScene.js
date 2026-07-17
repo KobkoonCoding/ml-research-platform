@@ -35,6 +35,11 @@ const DEFAULTS = Object.freeze({
 // tiny matte particles packed to near-solid — presence through density.
 const PORTRAIT_EXTRA_COUNT = 60000
 
+// Phones run without bloom (degrade level 1) and with a third of the
+// particles, so the same alpha that reads as a glowing figure on desktop
+// nearly vanished on a phone. Bloom was doing the work; this puts it back.
+const NO_BLOOM_BOOST = 1.75
+
 // Camera keyframes over whole-page scroll fraction (t in [0..1]).
 const CAMERA_KEYS = [
   // First two keys look from higher up so the net sits in the lower half
@@ -767,9 +772,10 @@ export default class OptimaScene {
         uVh: { value: 1 },
         uMouse: { value: new THREE.Vector2(9, 9) },
         uStir: { value: 0 },
+        uBoost: { value: this.usePost ? 1 : NO_BLOOM_BOOST },
       },
       vertexShader: [
-        'uniform float uTime; uniform float uMorph; uniform float uFlow; uniform float uIntro; uniform float uPR; uniform float uVh; uniform vec2 uMouse; uniform float uStir;',
+        'uniform float uTime; uniform float uMorph; uniform float uFlow; uniform float uIntro; uniform float uPR; uniform float uVh; uniform vec2 uMouse; uniform float uStir; uniform float uBoost;',
         'attribute vec3 aWord; attribute vec4 aPort; attribute vec3 aPortC;',
         'attribute vec3 aNetA; attribute vec3 aNetB; attribute vec3 aNetC; attribute vec3 aCol;',
         'attribute vec2 aFlowD; attribute vec2 aMisc;',
@@ -901,7 +907,7 @@ export default class OptimaScene {
         '  aStage = mix(aStage, 0.5 * coreGlow, coreW);',
         '  aStage = mix(aStage, 0.4 + 0.26 * sweep, wordW);',
         '  float portA = 0.07 + aPort.w * 0.22;',
-        '  vA = twP * ig * mix(aStage, portA, portW);',
+        '  vA = twP * ig * mix(aStage, portA, portW) * uBoost;',
         '  vA *= 1.0 - netStageW * hideHalf;',
         '  float sizeStage = 1.0 + 0.35 * sphW + (0.25 * tessGlow) * tessW + (0.2 * coreGlow) * coreW + 0.1 * wordW;',
         '  gl_PointSize = sizeBase * uPR * uVh * twP * sizeStage * mix(1.0, 0.32 + aPort.w * 0.5, portW) * (260.0 / -mv.z);',
@@ -1097,9 +1103,10 @@ export default class OptimaScene {
         uVh: { value: 1 },
         uMouse: { value: new THREE.Vector2(9, 9) },
         uStir: { value: 0 },
+        uBoost: { value: this.usePost ? 1 : NO_BLOOM_BOOST },
       },
       vertexShader: [
-        'uniform float uTime; uniform float uPortW; uniform float uPR; uniform float uVh; uniform vec2 uMouse; uniform float uStir;',
+        'uniform float uTime; uniform float uPortW; uniform float uPR; uniform float uVh; uniform vec2 uMouse; uniform float uStir; uniform float uBoost;',
         'attribute vec4 aTgt; attribute vec3 aColor; attribute vec3 aScat; attribute vec2 aSeed;',
         'varying vec3 vCol; varying float vA;',
         'float ss(float x){ x = clamp(x, 0.0, 1.0); return x*x*(3.0-2.0*x); }',
@@ -1124,7 +1131,7 @@ export default class OptimaScene {
         '  float tw = 0.85 + 0.15 * sin(uTime * (1.0 + aSeed.x * 2.0) + aSeed.y * 80.0);',
         // dense stack of 60k additive points saturates fast — keep each
         // point faint so the mass reads near-solid without burning white
-        '  vA = e * uPortW * tw * (0.075 + aTgt.w * 0.2);',
+        '  vA = e * uPortW * tw * (0.075 + aTgt.w * 0.2) * uBoost;',
         '  vCol = aColor * (0.5 + aTgt.w * 0.42);',
         '  gl_PointSize = (0.028 + aTgt.w * 0.042) * uPR * uVh * tw * (260.0 / -mv.z);',
         '}',
@@ -1174,8 +1181,15 @@ export default class OptimaScene {
     if (level === 1) {
       this.renderer.setPixelRatio(1)
       this.usePost = false
-      if (this.pMat) this.pMat.uniforms.uPR.value = 1
-      if (this.portExtraMat) this.portExtraMat.uniforms.uPR.value = 1
+      // losing bloom costs the scene its glow — compensate in the shaders
+      if (this.pMat) {
+        this.pMat.uniforms.uPR.value = 1
+        this.pMat.uniforms.uBoost.value = NO_BLOOM_BOOST
+      }
+      if (this.portExtraMat) {
+        this.portExtraMat.uniforms.uPR.value = 1
+        this.portExtraMat.uniforms.uBoost.value = NO_BLOOM_BOOST
+      }
       this.setSize(window.innerWidth, window.innerHeight)
     }
     if (level === 2) {
@@ -1259,13 +1273,15 @@ export default class OptimaScene {
       })
 
     if (this.netGroup) {
+      // same no-bloom compensation the shaders get via uBoost
+      const gb = this.usePost ? 1 : NO_BLOOM_BOOST
       this.netGroup.visible = netW > 0.02
-      this.netLines.material.opacity = netW * (0.13 + 0.04 * Math.sin(time * 1.4))
-      this.netNodesPts.material.opacity = netW * 0.9
+      this.netLines.material.opacity = Math.min(1, netW * (0.13 + 0.04 * Math.sin(time * 1.4)) * gb)
+      this.netNodesPts.material.opacity = Math.min(1, netW * 0.9 * gb)
       this.netNodesPts.material.size = 0.058 + 0.009 * Math.sin(time * 2.3)
-      this.netCoresA.material.opacity = netW * (0.5 + 0.12 * Math.sin(time * 1.9))
+      this.netCoresA.material.opacity = Math.min(1, netW * (0.5 + 0.12 * Math.sin(time * 1.9)) * gb)
       this.netCoresA.material.size = 0.48 + 0.045 * Math.sin(time * 1.9)
-      this.netCoresB.material.opacity = netW * (0.32 + 0.06 * Math.sin(time * 2.6 + 1.3))
+      this.netCoresB.material.opacity = Math.min(1, netW * (0.32 + 0.06 * Math.sin(time * 2.6 + 1.3)) * gb)
     }
 
     if (this.portExtra) {

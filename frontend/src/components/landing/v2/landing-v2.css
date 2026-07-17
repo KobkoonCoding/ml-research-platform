@@ -352,6 +352,23 @@
   margin-top: 19dvh;
 }
 
+/* ── Phones ───────────────────────────────────────────────────
+   Most visitors arrive here, so this isn't a compressed desktop:
+   the pinned story is shorter (4 swipes -> ~2.6) and the smallest
+   type steps up. */
+@media (max-width: 760px) {
+  .landing-v2 {
+    --lv2-fs-1: 12px;
+    --lv2-fs-2: 13px;
+  }
+
+  .lv2-hero {
+    height: 260vh;
+    height: 260dvh;
+  }
+}
+
+
 /* Nav — glass capsule with active-section highlight */
 .lv2-nav-links {
   display: flex;
