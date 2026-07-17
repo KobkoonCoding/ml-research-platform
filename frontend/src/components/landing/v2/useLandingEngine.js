@@ -130,6 +130,10 @@ export default function useLandingEngine({ sectionIds }) {
     soundRef.current = sound
     const loss = refs.lossCanvas.current ? new LossCurve(refs.lossCanvas.current) : null
 
+    // Reduced motion freezes the scene clock: the shaders animate off
+    // uTime, so without this the particles keep flowing and twinkling.
+    const sceneTime = () => (reduceMotion ? 0 : performance.now() * 0.001)
+
     /* ── loader ───────────────────────────────────────────────── */
     let loaderIv = 0
     let loaderTimeout = 0
@@ -491,7 +495,7 @@ export default function useLandingEngine({ sectionIds }) {
       const skipFrame = S.qLevel >= 2 && S.fCount % 2
       if (!skipFrame) {
         const res = engine && engine.frame({
-          time: now * 0.001,
+          time: sceneTime(),
           targetMorph: S.targetMorph,
           intro: S.intro,
           scrollFrac: S.scrollFrac,
@@ -523,7 +527,7 @@ export default function useLandingEngine({ sectionIds }) {
         if (S.starve % 4 === 0 && S.qLevel < 2) degrade()
         if (S.starve % 3 === 0 && engine)
           engine.frame({
-            time: performance.now() * 0.001,
+            time: sceneTime(),
             targetMorph: S.targetMorph,
             intro: S.intro,
             scrollFrac: S.scrollFrac,
@@ -563,7 +567,7 @@ export default function useLandingEngine({ sectionIds }) {
         handleScroll()
         if (!engine) return null
         engine.frame({
-          time: performance.now() * 0.001,
+          time: sceneTime(),
           targetMorph: S.targetMorph,
           intro: 1,
           scrollFrac: S.scrollFrac,
