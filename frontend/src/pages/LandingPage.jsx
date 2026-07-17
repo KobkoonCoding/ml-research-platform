@@ -213,7 +213,7 @@ const moduleTextPanelStyle = {
 function Feature({ children }) {
   return (
     <li style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}>
-      <span style={{ color: 'var(--lv2-accent)' }}>—</span>
+      <span aria-hidden="true" style={{ color: 'var(--lv2-accent)' }}>·</span>
       {children}
     </li>
   )
@@ -271,7 +271,7 @@ function ShowcaseIndex() {
           }}
         >
           <div style={{ flex: '1 1 380px', minWidth: 280 }}>
-            <div className="lv2-label" style={{ marginBottom: 22 }}>07 — Showcase</div>
+            <div className="lv2-label" style={{ marginBottom: 22 }}>07 · Showcase</div>
             <h2
               className="lv2-serif"
               style={{ fontWeight: 200, fontSize: 'clamp(2.2rem,4.6vw,4.2rem)', lineHeight: 1, letterSpacing: '-0.025em' }}
@@ -279,8 +279,8 @@ function ShowcaseIndex() {
               Optimized in the <span style={{ fontStyle: 'italic' }}>wild.</span>
             </h2>
             <p style={{ color: 'var(--lv2-ink-3)', marginTop: 18, fontSize: 'var(--lv2-fs-4)', lineHeight: 1.6, maxWidth: '52ch' }}>
-              Eight live models across vision, medical imaging, and detection —
-              pick one and try it with your own image.
+              Eight models you can try right now, across vision, medical imaging, and
+              detection. Pick one and bring your own image.
             </p>
           </div>
           {/* sample inputs — always visible */}
@@ -417,7 +417,7 @@ export default function LandingPage() {
       <SEO
         path="/"
         title="NEXUS — ML Research Platform · Mathematical Optimization for Machine Learning"
-        description="No-code ML research platform fusing mathematical optimization with machine learning — data cleaning, Extreme Learning Machine training, and pretrained AI inference (image, medical, object detection). Built by Dr. Kobkoon Janngam, Chiang Mai University."
+        description="A no-code ML research platform built on the mathematics of optimization: data cleaning, Extreme Learning Machine training, and pretrained AI inference for images, medical scans, and object detection. Built by Dr. Kobkoon Janngam, Chiang Mai University."
         jsonLd={LANDING_JSON_LD}
       />
 
@@ -706,8 +706,8 @@ export default function LandingPage() {
                 fontSize: 'clamp(var(--lv2-fs-4),1.2vw,var(--lv2-fs-5))', lineHeight: 1.6, color: 'var(--lv2-ink-2)',
               }}
             >
-              A no-code research platform where mathematical optimization powers machine
-              learning — from data cleaning to model training to real-time inference.
+              A no-code research platform built on the mathematics of optimization.
+              Clean your data, train a model, and watch it predict.
             </p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginTop: 24 }}>
               <a
@@ -720,7 +720,7 @@ export default function LandingPage() {
                 Explore Platform
               </a>
               <Link to="/deep-learning" data-magnet className="lv2-pill" style={{ padding: '12px 28px', fontSize: 14.5 }}>
-                Try AI Models — No Setup
+                Try the AI models
               </Link>
             </div>
           </div>
@@ -728,8 +728,8 @@ export default function LandingPage() {
           {/* Step 1 — raw data */}
           <div data-hero-step style={{ ...heroCardStyle('right'), bottom: '18%' }}>
             <div className="lv2-label" style={{ marginBottom: 22 }}>
-              <span className="lv2-sr-only">01 — Raw data</span>
-              <span data-scramble aria-hidden="true">01 — Raw data</span>
+              <span className="lv2-sr-only">01 · Raw data</span>
+              <span data-scramble aria-hidden="true">01 · Raw data</span>
             </div>
             <h2 className="lv2-serif" style={heroH2Style}>
               Every dataset begins
@@ -741,8 +741,8 @@ export default function LandingPage() {
           {/* Step 2 — optimization */}
           <div data-hero-step style={{ ...heroCardStyle('left'), top: '22%' }}>
             <div className="lv2-label" style={{ marginBottom: 22 }}>
-              <span className="lv2-sr-only">02 — Optimization</span>
-              <span data-scramble aria-hidden="true">02 — Optimization</span>
+              <span className="lv2-sr-only">02 · Optimization</span>
+              <span data-scramble aria-hidden="true">02 · Optimization</span>
             </div>
             <h2 className="lv2-serif" style={heroH2Style}>
               Optimization folds
@@ -754,11 +754,11 @@ export default function LandingPage() {
           {/* Step 3 — inference */}
           <div data-hero-step style={{ ...heroCardStyle('right'), bottom: '20%' }}>
             <div className="lv2-label" style={{ marginBottom: 22 }}>
-              <span className="lv2-sr-only">03 — Inference</span>
-              <span data-scramble aria-hidden="true">03 — Inference</span>
+              <span className="lv2-sr-only">03 · Inference</span>
+              <span data-scramble aria-hidden="true">03 · Inference</span>
             </div>
             <h2 className="lv2-serif" style={heroH2Style}>
-              The model wakes up —
+              The model wakes up,
               <br />
               <span style={{ fontStyle: 'italic' }}>ready to answer.</span>
             </h2>
@@ -809,8 +809,8 @@ export default function LandingPage() {
         </p>
         <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap', marginTop: 80 }}>
           {[
-            { big: '9', small: 'live AI models across vision & medical' },
-            { big: '3', small: 'integrated modules — clean · train · try' },
+            { big: '9', small: 'models you can try right now' },
+            { big: '3', small: 'modules that work as one: clean, train, try' },
             { big: '0', small: 'lines of code required' },
           ].map((s) => (
             <div
@@ -858,8 +858,8 @@ export default function LandingPage() {
             <div data-plx="0.1" aria-hidden="true" className="lv2-serif" style={ghostNumStyle}>04</div>
             <h3 className="lv2-serif" style={moduleH3Style}>Data Forensic &amp; Cleaning</h3>
             <p style={moduleParaStyle}>
-              A dedicated laboratory for automated dataset cleansing, anomaly detection, and
-              missing-value treatment — the essential first step before any ML pipeline.
+              A laboratory for cleaning datasets. Find the outliers, fill the gaps, and settle
+              every quality issue before a model ever sees your data.
             </p>
             <ul style={featureListStyle}>
               <Feature>Auto-detect data quality issues</Feature>
@@ -936,7 +936,7 @@ export default function LandingPage() {
               }}
             >
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--lv2-accent)' }} />
-              3 issues detected · auto-fixed — 1 imputed · 1 capped · 1 duplicate removed
+              3 issues found and fixed: 1 filled in, 1 capped, 1 duplicate removed
             </div>
           </div>
         </div>
@@ -968,9 +968,9 @@ export default function LandingPage() {
             <div data-plx="0.1" aria-hidden="true" className="lv2-serif" style={ghostNumStyle}>05</div>
             <h3 className="lv2-serif" style={moduleH3Style}>ELM Studio</h3>
             <p style={moduleParaStyle}>
-              Extreme Learning Machine training powered by a proven optimization algorithm with
-              theoretical convergence guarantees. Train classification models in milliseconds —
-              no backpropagation needed.
+              Extreme Learning Machine training, powered by an optimization algorithm with
+              proven convergence. Models train in milliseconds, and nothing here needs
+              backpropagation.
             </p>
             <ul style={featureListStyle}>
               <Feature>Optimization-based ELM with convergence guarantees</Feature>
@@ -991,9 +991,9 @@ export default function LandingPage() {
             <div data-plx="0.1" aria-hidden="true" className="lv2-serif" style={ghostNumStyle}>06</div>
             <h3 className="lv2-serif" style={moduleH3Style}>AI Model Hub</h3>
             <p style={moduleParaStyle}>
-              A curated collection of pre-trained models — image classification, medical imaging,
-              and object detection. Upload an image and get instant predictions with attention
-              heatmaps, bounding boxes, and pose skeletons.
+              Pre-trained models for image classification, medical imaging, and object detection.
+              Upload a picture and read the prediction in seconds, alongside attention heatmaps,
+              bounding boxes, and pose skeletons.
             </p>
             <Link to="/deep-learning" data-magnet className="lv2-pill" style={{ marginTop: 34, padding: '12px 26px', fontSize: 14.5 }}>
               Try Our Models →
@@ -1064,7 +1064,7 @@ export default function LandingPage() {
       {/* ═══ CTA ═══ */}
       <section id="cta" style={{ position: 'relative', zIndex: 2, padding: 'clamp(100px,16vh,190px) clamp(20px,7vw,120px)', textAlign: 'center' }}>
         <div data-reveal style={{ maxWidth: 1000, margin: '0 auto' }}>
-          <div className="lv2-label" style={{ marginBottom: 32 }}>08 — Converge</div>
+          <div className="lv2-label" style={{ marginBottom: 32 }}>08 · Converge</div>
           <h2
             className="lv2-serif"
             style={{ fontWeight: 200, fontSize: 'clamp(2.8rem,9vw,7.5rem)', lineHeight: 0.94, letterSpacing: '-0.03em' }}
@@ -1077,8 +1077,8 @@ export default function LandingPage() {
               fontSize: 'clamp(var(--lv2-fs-4),1.3vw,var(--lv2-fs-5))', lineHeight: 1.65,
             }}
           >
-            From raw data to trained models to live predictions — no code required.
-            Pick a module and start your research workflow.
+            From raw data to a trained model to live predictions, without writing code.
+            Pick a module and start.
           </p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 46, flexWrap: 'wrap' }}>
             <button

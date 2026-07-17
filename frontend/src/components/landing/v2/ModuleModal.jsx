@@ -22,7 +22,7 @@ export const MODULES = [
     id: 'elm-studio',
     num: '02',
     title: 'ELM Studio',
-    tagline: 'Train models with optimization-backed speed',
+    tagline: 'Training in milliseconds, backed by optimization',
     features: ['Convergence-guaranteed ELM', 'Configurable hidden nodes', 'Real-time prediction'],
     bestFor: 'Quick prototyping of classification models',
     path: '/elm-studio',
@@ -31,7 +31,7 @@ export const MODULES = [
     id: 'deep-learning',
     num: '03',
     title: 'AI Model Hub',
-    tagline: '9 live models across vision & medical AI',
+    tagline: 'Nine models across vision and medical AI',
     features: ['Image classification', 'Medical imaging + heatmaps', 'Detection & pose'],
     bestFor: 'Exploring pre-trained AI models',
     path: '/deep-learning',
@@ -141,7 +141,7 @@ export default function ModuleModal({ open, onClose }) {
           Where do you want to <span className="lv2-gradient-text">begin?</span>
         </h3>
         <p style={{ color: 'var(--lv2-ink-3)', fontSize: 'var(--lv2-fs-4)', marginTop: 10 }}>
-          Three modules, one workflow — clean, train, try.
+          Three modules, one workflow: clean, train, try.
         </p>
         <div
           style={{
@@ -174,7 +174,7 @@ export default function ModuleModal({ open, onClose }) {
               <ul style={{ listStyle: 'none', padding: 0, marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {m.features.map((f) => (
                   <li key={f} style={{ display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 'var(--lv2-fs-3)', color: 'var(--lv2-ink-2)' }}>
-                    <span style={{ color: 'var(--lv2-accent)' }}>—</span>
+                    <span aria-hidden="true" style={{ color: 'var(--lv2-accent)' }}>·</span>
                     {f}
                   </li>
                 ))}
