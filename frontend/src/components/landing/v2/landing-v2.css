@@ -569,23 +569,39 @@
 /* Narrow screens: the model description must survive — it's the only
    thing telling you what each model does. It stacks under the title
    instead of disappearing. */
+/* Narrow screens: the description stacks under the title instead of
+   disappearing (it's the only thing saying what each model does).
+   Named areas, not column counts — the row has four children, and
+   redefining three columns let auto-placement scatter them: the arrow
+   landed in column 1 and the title got squeezed into 2ch, one letter
+   per line. */
 @media (max-width: 900px) {
   .lv2-row {
     grid-template-columns: 3.5ch minmax(0, 1fr) 2ch;
-    row-gap: 6px;
+    grid-template-areas:
+      'num title arrow'
+      '.   meta  .';
+    column-gap: 14px;
+    row-gap: 5px;
     padding: 18px 6px;
+    align-items: baseline;
+  }
+  .lv2-row-num {
+    grid-area: num;
   }
   .lv2-row-title {
+    grid-area: title;
     white-space: normal;
+    font-size: clamp(1.05rem, 4.4vw, 1.35rem);
   }
   .lv2-row-meta {
-    grid-column: 2 / 3;
-    grid-row: 2;
+    grid-area: meta;
+    display: block;
     white-space: normal;
     font-size: var(--lv2-fs-3);
   }
   .lv2-row-arrow {
-    grid-row: 1;
+    grid-area: arrow;
   }
 }
 
