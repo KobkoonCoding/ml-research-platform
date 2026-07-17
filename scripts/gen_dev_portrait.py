@@ -95,6 +95,23 @@ rgba = cv2.merge([b, gch, r, a])
 cv2.imwrite(OUT, rgba)
 print("wrote", OUT, tw, "x", th)
 
+# Depth map via silhouette inflation: distance from the mask edge, square-
+# rooted for a rounded "bas-relief" bulge, plus a touch of luminance detail.
+# Lets the landing page place portrait particles on a real 3D surface that
+# can rotate like a sculpture (igloo.inc style).
+mask_bin = (a > 100).astype("uint8")
+dist = cv2.distanceTransform(mask_bin, cv2.DIST_L2, 5)
+if dist.max() > 0:
+    dist = dist / dist.max()
+bulge = (dist ** 0.5)
+lum_detail = cv2.cvtColor(col, cv2.COLOR_BGR2GRAY).astype("float32") / 255.0
+depth = bulge * 0.82 + lum_detail * 0.18
+depth = cv2.GaussianBlur(depth, (5, 5), 0)
+depth_img = (depth * 255).astype("uint8")
+DEPTH_OUT = OUT.replace(".png", "-depth.png")
+cv2.imwrite(DEPTH_OUT, cv2.merge([depth_img, depth_img, depth_img, a]))
+print("wrote", DEPTH_OUT)
+
 # Preview on dark background for visual check
 bg = np.full((th, tw, 3), 12, np.uint8)
 af = (a.astype(np.float32) / 255)[..., None]
