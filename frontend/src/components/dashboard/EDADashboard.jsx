@@ -25,7 +25,14 @@ const Plot = ({ id, data, layout, style }) => {
         }
         Plotly.newPlot(el, data, mergedLayout, { responsive: true, displayModeBar: false })
       })
-      .catch(() => { /* charts are enhancement — page stays usable */ })
+      .catch(() => {
+        // Say so rather than leaving an unexplained empty box; the next
+        // chart mount retries the download.
+        if (cancelled || !el) return
+        el.innerHTML =
+          '<div style="padding:24px;text-align:center;font-size:13px;color:#94a3b8">' +
+          'Chart unavailable — could not load the plotting library.</div>'
+      })
     return () => {
       cancelled = true
       if (el && window.Plotly) window.Plotly.purge(el)

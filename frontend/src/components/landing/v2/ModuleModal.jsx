@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { lockScroll, unlockScroll } from './scrollLock'
 
 /**
  * Module-selection modal (opened by "Get Started" / the CTA).
@@ -69,6 +70,14 @@ export default function ModuleModal({ open, onClose }) {
       if (!items.length) return
       const first = items[0]
       const last = items[items.length - 1]
+      // Focus outside the panel (e.g. parked on <body> after a backdrop
+      // click) would otherwise Tab into the page that aria-modal claims
+      // is inert.
+      if (!panelRef.current.contains(document.activeElement)) {
+        e.preventDefault()
+        ;(e.shiftKey ? last : first).focus()
+        return
+      }
       if (e.shiftKey && document.activeElement === first) {
         e.preventDefault()
         last.focus()
@@ -78,11 +87,10 @@ export default function ModuleModal({ open, onClose }) {
       }
     }
     document.addEventListener('keydown', onKey)
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    lockScroll()
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prev
+      unlockScroll()
       const opener = openerRef.current
       if (opener instanceof HTMLElement && document.contains(opener)) opener.focus()
     }
@@ -108,7 +116,7 @@ export default function ModuleModal({ open, onClose }) {
         ref={panelRef}
         onClick={(e) => e.stopPropagation()}
         style={{
-          position: 'relative', width: '100%', maxWidth: 880, maxHeight: '90vh', overflowY: 'auto',
+          position: 'relative', width: '100%', maxWidth: 880, maxHeight: '90dvh', overflowY: 'auto',
           borderRadius: 24, border: '1px solid rgba(255,255,255,0.1)',
           background: 'rgba(9,11,18,0.92)', padding: 'clamp(24px,4vw,44px)',
           boxShadow: '0 60px 120px -40px rgba(0,0,0,0.8)',
@@ -152,21 +160,21 @@ export default function ModuleModal({ open, onClose }) {
               style={{
                 textAlign: 'left', padding: '22px 20px', borderRadius: 16,
                 border: '1px solid rgba(255,255,255,0.1)',
-                background: 'rgba(255,255,255,0.03)', color: '#eef1f8', cursor: 'pointer',
+                background: 'rgba(255,255,255,0.03)', color: 'var(--lv2-ink)', cursor: 'pointer',
                 transition: 'border-color .25s, background .25s, transform .25s',
               }}
             >
-              <div className="lv2-serif" style={{ fontWeight: 300, fontSize: '1.9rem', color: 'rgba(255,255,255,0.22)', lineHeight: 1 }}>
+              <div aria-hidden="true" className="lv2-serif" style={{ fontWeight: 300, fontSize: '1.9rem', color: 'rgba(255,255,255,0.22)', lineHeight: 1 }}>
                 {m.num}
               </div>
               <div className="lv2-serif" style={{ fontWeight: 400, fontSize: '1.15rem', marginTop: 12, letterSpacing: '-0.01em' }}>
                 {m.title}
               </div>
-              <div style={{ color: '#8fb6ff', fontSize: 'var(--lv2-fs-2)', fontStyle: 'italic', marginTop: 5 }}>{m.tagline}</div>
+              <div style={{ color: 'var(--lv2-accent-hi)', fontSize: 'var(--lv2-fs-2)', fontStyle: 'italic', marginTop: 5 }}>{m.tagline}</div>
               <ul style={{ listStyle: 'none', padding: 0, marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {m.features.map((f) => (
                   <li key={f} style={{ display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 'var(--lv2-fs-3)', color: 'var(--lv2-ink-2)' }}>
-                    <span style={{ color: '#6da8ff' }}>—</span>
+                    <span style={{ color: 'var(--lv2-accent)' }}>—</span>
                     {f}
                   </li>
                 ))}

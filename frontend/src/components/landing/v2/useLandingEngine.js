@@ -6,7 +6,7 @@
  *     card tilt, scroll-velocity smoothing
  *   - scroll handler driving: hero step choreography (with text decrypt),
  *     morph targets, progress bar, nav backdrop, section dots, parallax,
- *     reveal-on-scroll, loss-curve scrub, horizontal gallery
+ *     reveal-on-scroll, loss-curve scrub
  *   - loader (skipped after first visit in the same session)
  *   - FPS watchdog with two-level quality degradation
  *
@@ -59,8 +59,6 @@ export default function useLandingEngine({ sectionIds }) {
     scrollHint: useRef(null),
     lossWrap: useRef(null),
     lossCanvas: useRef(null),
-    galleryWrap: useRef(null),
-    galleryTrack: useRef(null),
   }
   const soundRef = useRef(null)
 
@@ -69,11 +67,21 @@ export default function useLandingEngine({ sectionIds }) {
     return soundRef.current.toggle()
   }, [])
 
-  const scrollToId = useCallback((id) => {
+  /**
+   * Scrolls to a section and, when asked, moves keyboard focus there too.
+   * Scrolling alone is what made the skip link decorative: the next Tab
+   * still walked the nav and the pinned hero. `moveFocus` makes the target
+   * the sequential-focus start point.
+   */
+  const scrollToId = useCallback((id, { moveFocus = false } = {}) => {
     const el = document.getElementById(id)
     if (!el) return
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const top = el.getBoundingClientRect().top + (window.scrollY || 0) - 6
-    window.scrollTo({ top, behavior: 'smooth' })
+    window.scrollTo({ top, behavior: reduce ? 'auto' : 'smooth' })
+    if (!moveFocus) return
+    if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1')
+    el.focus({ preventScroll: true })
   }, [])
 
   useEffect(() => {
@@ -303,7 +311,7 @@ export default function useLandingEngine({ sectionIds }) {
           dotEls.forEach((d, i) => {
             const on = i === act
             d.style.background = on ? '#8fb6ff' : 'transparent'
-            d.style.borderColor = on ? '#8fb6ff' : 'rgba(180,205,255,0.4)'
+            d.style.borderColor = on ? '#8fb6ff' : 'rgba(180,205,255,0.55)'
             d.style.transform = on ? 'scale(1.4)' : 'scale(1)'
           })
           navLinkEls.forEach((l) => {
@@ -311,11 +319,13 @@ export default function useLandingEngine({ sectionIds }) {
           })
         }
       }
-      plxEls.forEach((el) => {
-        const r = el.getBoundingClientRect()
-        if (r.bottom > -60 && r.top < vh + 60)
-          el.style.transform = `translateY(${((r.top + r.height / 2 - vh / 2) * parseFloat(el.dataset.plx)).toFixed(1)}px)`
-      })
+      // parallax is decorative: reduced motion leaves the numbers put
+      if (!reduceMotion)
+        plxEls.forEach((el) => {
+          const r = el.getBoundingClientRect()
+          if (r.bottom > -60 && r.top < vh + 60)
+            el.style.transform = `translateY(${((r.top + r.height / 2 - vh / 2) * parseFloat(el.dataset.plx)).toFixed(1)}px)`
+        })
 
       // hero: pinned 520vh scroll story
       const hw = refs.heroWrap.current
@@ -417,16 +427,6 @@ export default function useLandingEngine({ sectionIds }) {
         if (Math.abs(p - loss.prog) > 0.002) loss.draw(p)
       }
 
-      // horizontal gallery
-      const gw = refs.galleryWrap.current
-      const gt = refs.galleryTrack.current
-      if (gw && gt) {
-        const r = gw.getBoundingClientRect()
-        const total = gw.offsetHeight - vh
-        const p = clamp01(-r.top / Math.max(1, total))
-        const dist = gt.scrollWidth - window.innerWidth
-        gt.style.transform = `translateX(${-p * Math.max(0, dist)}px) skewX(${S.velS.toFixed(2)}deg)`
-      }
     }
 
     /* ── main loop ────────────────────────────────────────────── */

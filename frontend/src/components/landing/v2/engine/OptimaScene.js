@@ -1157,7 +1157,13 @@ export default class OptimaScene {
     this.camera.aspect = w / h
     this.camera.updateProjectionMatrix()
     if (this.composer) this.composer.setSize(w, h)
-
+    // A rotation can move a device across the small/large line. Without
+    // this, a tablet that started in landscape kept desktop budgets after
+    // turning portrait. Tightens only — never re-inflates a degraded scene.
+    if (isSmallDevice() && !this.small) {
+      this.small = true
+      this.degrade(1)
+    }
   }
 
   /**

@@ -4,6 +4,7 @@ import { useTheme } from '../context/ThemeContext'
 import SEO from '../components/SEO'
 import useLandingEngine from '../components/landing/v2/useLandingEngine'
 import ModuleModal from '../components/landing/v2/ModuleModal'
+import { lockScroll, unlockScroll } from '../components/landing/v2/scrollLock'
 import { DEVELOPER_PROFILE } from '../lib/developerData'
 import '../components/landing/v2/landing-v2.css'
 
@@ -230,7 +231,7 @@ const moduleTextPanelStyle = {
 function Feature({ children }) {
   return (
     <li style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}>
-      <span style={{ color: '#6da8ff' }}>—</span>
+      <span style={{ color: 'var(--lv2-accent)' }}>—</span>
       {children}
     </li>
   )
@@ -251,7 +252,7 @@ function TickerGroup() {
             style={{
               fontWeight: 200, fontStyle: 'italic',
               fontSize: 'clamp(1.5rem,2.4vw,2.2rem)', letterSpacing: '-0.01em',
-              color: '#dfe9ff', whiteSpace: 'nowrap',
+              color: 'var(--lv2-ink-hi)', whiteSpace: 'nowrap',
             }}
           >
             {w}
@@ -355,6 +356,12 @@ export default function LandingPage() {
       if (!items.length) return
       const first = items[0]
       const last = items[items.length - 1]
+      // same guard as the modal: never let Tab escape to the page behind
+      if (!drawerRef.current.contains(document.activeElement)) {
+        e.preventDefault()
+        ;(e.shiftKey ? last : first).focus()
+        return
+      }
       if (e.shiftKey && document.activeElement === first) {
         e.preventDefault()
         last.focus()
@@ -364,20 +371,26 @@ export default function LandingPage() {
       }
     }
     document.addEventListener('keydown', onKey)
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    lockScroll()
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prev
-      if (opener instanceof HTMLElement) opener.focus()
+      unlockScroll()
+      if (opener instanceof HTMLElement && document.contains(opener)) opener.focus()
     }
   }, [drawerOpen])
 
-  let initialLoaderVisible = true
-  try {
-    initialLoaderVisible = sessionStorage.getItem('nexus:intro-seen') !== '1'
-  } catch { /* private mode: show it */ }
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) initialLoaderVisible = false
+  // Decided once, at mount. Read during render it re-evaluated on every
+  // re-render — and since the engine writes the session key as it starts
+  // the dismiss animation, the next render (e.g. the scroll listener
+  // flipping showSkip) unmounted the loader mid-slide.
+  const [initialLoaderVisible] = useState(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false
+    try {
+      return sessionStorage.getItem('nexus:intro-seen') !== '1'
+    } catch {
+      return true // private mode: show it
+    }
+  })
 
   // Landing always renders dark (WebGL scene has baked dark palette).
   // Restore the user's chosen theme on unmount — same strategy as v1.
@@ -418,7 +431,7 @@ export default function LandingPage() {
   }, [])
 
   return (
-    <div ref={refs.root} className="landing-v2" style={{ position: 'relative', width: '100%', background: '#06070c' }}>
+    <div ref={refs.root} className="landing-v2" style={{ position: 'relative', width: '100%', background: 'var(--lv2-bg)' }}>
       <SEO
         path="/"
         title="NEXUS — ML Research Platform · Mathematical Optimization for Machine Learning"
@@ -461,7 +474,7 @@ export default function LandingPage() {
         <div
           ref={refs.loader}
           style={{
-            position: 'fixed', inset: 0, zIndex: 200, background: '#06070c',
+            position: 'fixed', inset: 0, zIndex: 200, background: 'var(--lv2-bg)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             transition: 'transform 1s cubic-bezier(.76,0,.24,1)',
           }}
@@ -486,13 +499,20 @@ export default function LandingPage() {
       )}
 
       {/* First tab stop: jump past the pinned hero story to content */}
-      <a className="lv2-skip-link" href="#manifesto" onClick={(e) => handleAnchor(e, 'manifesto')}>
+      <a
+        className="lv2-skip-link"
+        href="#manifesto"
+        onClick={(e) => {
+          e.preventDefault()
+          scrollToId('manifesto', { moveFocus: true })
+        }}
+      >
         Skip to content
       </a>
 
       {/* Skip intro — quick escape from the pinned hero story */}
       {showSkip && (
-        <button className="lv2-skip" onClick={() => scrollToId('clean')}>
+        <button className="lv2-skip" onClick={() => scrollToId('clean', { moveFocus: true })}>
           Skip intro ↓
         </button>
       )}
@@ -502,7 +522,7 @@ export default function LandingPage() {
         ref={refs.progress}
         style={{
           position: 'fixed', top: 0, left: 0, height: 2, width: '0%',
-          background: 'linear-gradient(90deg,#6da8ff,#b79dff)', zIndex: 130,
+          background: 'linear-gradient(90deg,var(--lv2-accent),var(--lv2-accent-2))', zIndex: 130,
         }}
       />
 
@@ -526,7 +546,7 @@ export default function LandingPage() {
               data-dot
               style={{
                 width: 8, height: 8, borderRadius: '50%',
-                border: '1px solid rgba(180,205,255,0.4)', background: 'transparent',
+                border: '1px solid rgba(180,205,255,0.55)', background: 'transparent',
                 display: 'block', transition: 'all .35s',
               }}
             />
@@ -546,13 +566,24 @@ export default function LandingPage() {
           borderBottom: '1px solid transparent',
         }}
       >
+        {/* The drawer sits below the nav so its burger stays usable as the
+            close button; that leaves the logo as the only control behind
+            the dialog, so it goes inert while the drawer is open —
+            otherwise aria-modal="true" would be a lie. */}
         <a
           href="#hero"
           onClick={(e) => handleAnchor(e, 'hero')}
           className="lv2-serif"
-          style={{ fontSize: 22, letterSpacing: '-0.01em', fontWeight: 400 }}
+          aria-hidden={drawerOpen || undefined}
+          tabIndex={drawerOpen ? -1 : undefined}
+          style={{
+            fontSize: 22, letterSpacing: '-0.01em', fontWeight: 400,
+            pointerEvents: drawerOpen ? 'none' : undefined,
+            opacity: drawerOpen ? 0.35 : 1,
+            transition: 'opacity .3s',
+          }}
         >
-          Nexus<span style={{ color: '#6da8ff' }}>.</span>
+          Nexus<span style={{ color: 'var(--lv2-accent)' }}>.</span>
         </a>
         <div style={{ display: 'flex', gap: 'clamp(10px,1.4vw,18px)', alignItems: 'center' }}>
           <div className="lv2-nav-links" data-nav-desktop>
@@ -572,8 +603,8 @@ export default function LandingPage() {
                 style={{
                   display: 'inline-block', width: 6, height: 6, borderRadius: '50%',
                   marginRight: 7, verticalAlign: 'middle',
-                  background: soundOn ? '#8fb6ff' : 'rgba(255,255,255,0.25)',
-                  boxShadow: soundOn ? '0 0 8px #6da8ff' : 'none',
+                  background: soundOn ? 'var(--lv2-accent-hi)' : 'rgba(255,255,255,0.25)',
+                  boxShadow: soundOn ? '0 0 8px var(--lv2-accent)' : 'none',
                   transition: 'all .3s',
                 }}
               />
@@ -637,7 +668,7 @@ export default function LandingPage() {
           </Link>
           <button
             className="lv2-drawer-item"
-            style={{ animationDelay: '0.53s', color: '#8fb6ff', fontSize: '1.15rem' }}
+            style={{ animationDelay: '0.53s', color: 'var(--lv2-accent-hi)', fontSize: '1.15rem' }}
             aria-pressed={soundOn}
             onClick={() => setSoundOn(toggleSound())}
           >
@@ -664,8 +695,8 @@ export default function LandingPage() {
 
       {/* ═══ HERO — 520vh pinned scroll story ═══ */}
       <main id="content">
-      <section id="hero" ref={refs.heroWrap} style={{ position: 'relative', height: '400dvh', zIndex: 2 }}>
-        <div style={{ position: 'sticky', top: 0, height: '100dvh', overflow: 'hidden', perspective: 1200 }}>
+      <section id="hero" ref={refs.heroWrap} className="lv2-hero" style={{ position: 'relative', zIndex: 2 }}>
+        <div className="lv2-hero-sticky" style={{ position: 'sticky', top: 0, overflow: 'hidden', perspective: 1200 }}>
           <div style={{ position: 'absolute', inset: '0 auto 0 0', width: '48%', pointerEvents: 'none', background: 'linear-gradient(90deg,rgba(6,7,12,0.76),rgba(6,7,12,0.34) 44%,transparent)' }} />
           <div style={{ position: 'absolute', inset: '0 0 0 auto', width: '48%', pointerEvents: 'none', background: 'linear-gradient(270deg,rgba(6,7,12,0.76),rgba(6,7,12,0.34) 44%,transparent)' }} />
 
@@ -680,7 +711,7 @@ export default function LandingPage() {
               textShadow: '0 0 44px rgba(4,5,9,0.96),0 2px 14px rgba(4,5,9,0.92)',
             }}
           >
-            <div className="lv2-label" style={{ marginTop: '19vh', marginBottom: 18 }}>Where Mathematics Meets Machine Learning</div>
+            <div className="lv2-label lv2-hero-badge" style={{ marginBottom: 18 }}>Where Mathematics Meets Machine Learning</div>
             <h1
               className="lv2-serif"
               style={{ fontWeight: 200, lineHeight: 0.96, letterSpacing: '-0.025em', fontSize: 'clamp(2.2rem,4.8vw,4.6rem)' }}
@@ -762,7 +793,7 @@ export default function LandingPage() {
           >
             <span>Scroll</span>
             <div style={{ width: 1, height: 34, background: 'linear-gradient(var(--lv2-ink-4),transparent)', position: 'relative', overflow: 'hidden' }}>
-              <span className="lv2-scrolldot-anim" style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 8, background: '#6da8ff', animation: 'lv2-scrolldot 1.8s infinite' }} />
+              <span className="lv2-scrolldot-anim" style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 8, background: 'var(--lv2-accent)', animation: 'lv2-scrolldot 1.8s infinite' }} />
             </div>
           </div>
         </div>
@@ -816,7 +847,7 @@ export default function LandingPage() {
         </div>
         <Link
           to="/about"
-          style={{ display: 'inline-block', marginTop: 42, fontSize: 'var(--lv2-fs-4)', color: '#8fb6ff', letterSpacing: '0.04em' }}
+          style={{ display: 'inline-block', marginTop: 42, fontSize: 'var(--lv2-fs-4)', color: 'var(--lv2-accent-hi)', letterSpacing: '0.04em' }}
         >
           Read the full story →
         </Link>
@@ -841,7 +872,7 @@ export default function LandingPage() {
       <section id="clean" style={moduleSectionStyle}>
         <div style={moduleGridStyle}>
           <div data-reveal style={moduleTextPanelStyle}>
-            <div data-plx="0.1" className="lv2-serif" style={ghostNumStyle}>04</div>
+            <div data-plx="0.1" aria-hidden="true" className="lv2-serif" style={ghostNumStyle}>04</div>
             <h3 className="lv2-serif" style={moduleH3Style}>Data Forensic &amp; Cleaning</h3>
             <p style={moduleParaStyle}>
               A dedicated laboratory for automated dataset cleansing, anomaly detection, and
@@ -874,7 +905,7 @@ export default function LandingPage() {
             <div style={{ flex: 1, padding: 'clamp(10px,1.6vw,20px)', overflow: 'hidden' }}>
               <table aria-hidden="true" style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'ui-monospace,monospace', fontSize: 'clamp(var(--lv2-fs-1),1vw,var(--lv2-fs-2))', color: 'var(--lv2-ink-3)' }}>
                 <thead>
-                  <tr style={{ color: '#6da8ff', textAlign: 'left' }}>
+                  <tr style={{ color: 'var(--lv2-accent)', textAlign: 'left' }}>
                     {['id', 'age', 'income', 'city', 'target'].map((h) => (
                       <th key={h} style={{ padding: '7px 8px', borderBottom: '1px solid rgba(255,255,255,0.12)', fontWeight: 500 }}>{h}</th>
                     ))}
@@ -888,7 +919,7 @@ export default function LandingPage() {
                   </tr>
                   <tr style={{ background: 'rgba(109,168,255,0.06)' }}>
                     <td style={{ padding: '7px 8px' }}>0042</td>
-                    <td style={{ padding: '7px 8px', color: '#ffd9a8' }}>
+                    <td style={{ padding: '7px 8px', color: 'var(--lv2-accent-warm)' }}>
                       <s style={{ opacity: 0.55 }}>NaN</s> → 31
                     </td>
                     <td style={{ padding: '7px 8px' }}>48,500</td><td style={{ padding: '7px 8px' }}>Bangkok</td>
@@ -896,7 +927,7 @@ export default function LandingPage() {
                   </tr>
                   <tr style={{ background: 'rgba(109,168,255,0.06)' }}>
                     <td style={{ padding: '7px 8px' }}>0043</td><td style={{ padding: '7px 8px' }}>29</td>
-                    <td style={{ padding: '7px 8px', color: '#ffd9a8' }}>
+                    <td style={{ padding: '7px 8px', color: 'var(--lv2-accent-warm)' }}>
                       <s style={{ opacity: 0.55 }}>9,999,999</s> → capped
                     </td>
                     <td style={{ padding: '7px 8px' }}>Phuket</td><td style={{ padding: '7px 8px' }}>1</td>
@@ -921,7 +952,7 @@ export default function LandingPage() {
                 display: 'flex', alignItems: 'center', gap: 8,
               }}
             >
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#6da8ff' }} />
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--lv2-accent)' }} />
               3 issues detected · auto-fixed — 1 imputed · 1 capped · 1 duplicate removed
             </div>
           </div>
@@ -951,7 +982,7 @@ export default function LandingPage() {
             </span>
           </div>
           <div data-reveal style={moduleTextPanelStyle}>
-            <div data-plx="0.1" className="lv2-serif" style={ghostNumStyle}>05</div>
+            <div data-plx="0.1" aria-hidden="true" className="lv2-serif" style={ghostNumStyle}>05</div>
             <h3 className="lv2-serif" style={moduleH3Style}>ELM Studio</h3>
             <p style={moduleParaStyle}>
               Extreme Learning Machine training powered by a proven optimization algorithm with
@@ -974,7 +1005,7 @@ export default function LandingPage() {
       <section id="try" style={moduleSectionStyle}>
         <div style={moduleGridStyle}>
           <div data-reveal style={moduleTextPanelStyle}>
-            <div data-plx="0.1" className="lv2-serif" style={ghostNumStyle}>06</div>
+            <div data-plx="0.1" aria-hidden="true" className="lv2-serif" style={ghostNumStyle}>06</div>
             <h3 className="lv2-serif" style={moduleH3Style}>AI Model Hub</h3>
             <p style={moduleParaStyle}>
               A curated collection of pre-trained models — image classification, medical imaging,
@@ -1030,11 +1061,11 @@ export default function LandingPage() {
                     <div
                       style={{
                         width: `${r.conf * 100}%`, height: '100%', borderRadius: 4,
-                        background: 'linear-gradient(90deg,#6da8ff,#b79dff)',
+                        background: 'linear-gradient(90deg,var(--lv2-accent),var(--lv2-accent-2))',
                       }}
                     />
                   </div>
-                  <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 'var(--lv2-fs-2)', color: '#8fb6ff', width: 42, textAlign: 'right' }}>
+                  <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 'var(--lv2-fs-2)', color: 'var(--lv2-accent-hi)', width: 42, textAlign: 'right' }}>
                     {r.conf.toFixed(2)}
                   </span>
                 </div>
@@ -1085,19 +1116,20 @@ export default function LandingPage() {
       {/* ═══ MEET THE DEVELOPER — the particles' final form ═══ */}
       <section
         id="developer"
+        className="lv2-dev-section"
         style={{
-          position: 'relative', zIndex: 2, minHeight: '105dvh',
+          position: 'relative', zIndex: 2,
           display: 'flex', flexDirection: 'column', justifyContent: 'center',
           padding: 'clamp(70px,10vh,130px) clamp(20px,7vw,120px) 0',
         }}
       >
         <div style={{ ...moduleGridStyle, width: '100%', alignItems: 'center' }}>
           <div data-reveal style={{ ...moduleTextPanelStyle, maxWidth: 560 }}>
-            <div data-plx="0.1" className="lv2-serif" style={ghostNumStyle}>09</div>
+            <div data-plx="0.1" aria-hidden="true" className="lv2-serif" style={ghostNumStyle}>09</div>
             <div className="lv2-label" style={{ marginTop: 16 }}>The researcher</div>
             <h3 className="lv2-serif" style={{ ...moduleH3Style, marginTop: 14 }}>{DEVELOPER_PROFILE.name}</h3>
             <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <span style={{ color: '#8fb6ff', fontSize: 'var(--lv2-fs-3)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              <span style={{ color: 'var(--lv2-accent-hi)', fontSize: 'var(--lv2-fs-3)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                 {DEVELOPER_PROFILE.role}
               </span>
               <span style={{ color: 'var(--lv2-ink-4)' }}>·</span>
@@ -1126,7 +1158,7 @@ export default function LandingPage() {
           {/* Right half stays empty — the WebGL particles assemble into the
               developer's 3D portrait here (morph stage 3). On small screens
               this spacer keeps the portrait visible below the panel. */}
-          <div aria-hidden style={{ minHeight: '46dvh' }} />
+          <div aria-hidden className="lv2-dev-spacer" />
         </div>
         <footer
           style={{
@@ -1136,8 +1168,8 @@ export default function LandingPage() {
             flexWrap: 'wrap', gap: 20, color: 'var(--lv2-ink-4)', fontSize: 'var(--lv2-fs-3)',
           }}
         >
-          <div className="lv2-serif" style={{ fontSize: 20, color: '#eef1f8' }}>
-            Nexus<span style={{ color: '#6da8ff' }}>.</span>
+          <div className="lv2-serif" style={{ fontSize: 20, color: 'var(--lv2-ink)' }}>
+            Nexus<span style={{ color: 'var(--lv2-accent)' }}>.</span>
           </div>
           <div style={{ display: 'flex', gap: 26 }}>
             <a href="#clean" onClick={(e) => handleAnchor(e, 'clean')}>Modules</a>

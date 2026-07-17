@@ -14,9 +14,13 @@
   --lv2-ink-2: #c6cddc; /* body copy      — 12.6:1 */
   --lv2-ink-3: #aab3c5; /* secondary      —  9.6:1 */
   --lv2-ink-4: #7d879c; /* muted captions —  5.6:1 */
+  --lv2-ink-hi: #dfe9ff; /* gradient/type highlight */
   --lv2-accent: #6da8ff;
   --lv2-accent-hi: #8fb6ff;
+  --lv2-accent-lo: #7ea6ff; /* gradient partner */
+  --lv2-accent-2: #b79dff; /* violet — progress + confidence bars */
   --lv2-accent-warm: #ffd9a8;
+  --lv2-surface: #0b0d14;
 
   --lv2-fs-1: 11px; /* tracked labels, mono micro */
   --lv2-fs-2: 12.5px; /* mono captions, nav */
@@ -31,18 +35,18 @@
 }
 
 .landing-v2 ::selection {
-  background: #6da8ff;
-  color: #06070c;
+  background: var(--lv2-accent);
+  color: var(--lv2-bg);
 }
 
 .landing-v2 a {
-  color: #eef1f8;
+  color: var(--lv2-ink);
   text-decoration: none;
   transition: color 0.3s, opacity 0.3s, border-color 0.3s, background 0.3s;
 }
 
 .landing-v2 a:hover {
-  color: #8fb6ff;
+  color: var(--lv2-accent-hi);
 }
 
 .landing-v2 p {
@@ -63,7 +67,7 @@
 .lv2-skip:focus-visible,
 .lv2-modal-card:focus-visible,
 .lv2-skip-link:focus-visible {
-  outline: 2px solid #8fb6ff;
+  outline: 2px solid var(--lv2-accent-hi);
   outline-offset: 3px;
   border-radius: 8px;
 }
@@ -83,8 +87,8 @@
   z-index: 210;
   transform: translateY(-160%);
   transition: transform 0.25s;
-  background: #6da8ff;
-  color: #06070c;
+  background: var(--lv2-accent);
+  color: var(--lv2-bg);
   font-size: var(--lv2-fs-3);
   font-weight: 500;
   padding: 11px 18px;
@@ -93,7 +97,14 @@
 
 .lv2-skip-link:focus {
   transform: translateY(0);
-  color: #06070c;
+  color: var(--lv2-bg);
+}
+
+/* Skip targets take focus programmatically (tabindex="-1"); they are
+   scroll destinations, not controls, so no ring is drawn on them. */
+.landing-v2 section:focus,
+.landing-v2 section:focus-visible {
+  outline: none;
 }
 
 .lv2-serif {
@@ -118,12 +129,12 @@
   font-size: var(--lv2-fs-1);
   letter-spacing: 0.4em;
   text-transform: uppercase;
-  color: #6da8ff;
+  color: var(--lv2-accent);
 }
 
 .lv2-gradient-text {
   font-style: italic;
-  background: linear-gradient(90deg, #dfe9ff, #7ea6ff);
+  background: linear-gradient(90deg, var(--lv2-ink-hi), var(--lv2-accent-lo));
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -134,26 +145,28 @@
   display: inline-block;
   padding: 9px 20px;
   border-radius: 100px;
-  border: 1px solid rgba(180, 205, 255, 0.35);
+  /* 0.5 alpha keeps the hairline look while clearing 1.4.11's 3:1 for
+     control boundaries (0.35 measured 2.34:1 on --lv2-bg) */
+  border: 1px solid rgba(180, 205, 255, 0.5);
   white-space: nowrap;
 }
 
 .lv2-pill:hover {
-  border-color: #6da8ff;
-  color: #8fb6ff;
+  border-color: var(--lv2-accent);
+  color: var(--lv2-accent-hi);
 }
 
 .lv2-pill-solid {
   display: inline-block;
-  background: #6da8ff;
-  color: #06070c;
+  background: var(--lv2-accent);
+  color: var(--lv2-bg);
   border-radius: 100px;
   font-weight: 500;
 }
 
 .lv2-pill-solid:hover {
-  background: #8fb6ff;
-  color: #06070c;
+  background: var(--lv2-accent-hi);
+  color: var(--lv2-bg);
 }
 
 @keyframes lv2-fade-in {
@@ -180,7 +193,7 @@
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.04);
-  color: #eef1f8;
+  color: var(--lv2-ink);
   cursor: pointer;
   align-items: center;
   justify-content: center;
@@ -211,6 +224,10 @@
 .lv2-drawer {
   position: fixed;
   inset: 0;
+  /* Deliberately below the nav (110): the burger doubles as this dialog's
+     close button and must stay clickable. The nav's only other control —
+     the logo — is made inert while the drawer is open (see LandingPage).
+     Raising this above the nav would trap users inside the drawer. */
   z-index: 105;
   display: flex;
   flex-direction: column;
@@ -238,7 +255,7 @@
   letter-spacing: -0.01em;
   background: none;
   border: none;
-  color: #eef1f8;
+  color: var(--lv2-ink);
   cursor: pointer;
 }
 
@@ -267,7 +284,7 @@
   font-family: ui-monospace, monospace;
   font-size: var(--lv2-fs-2);
   letter-spacing: 0.1em;
-  color: #6da8ff;
+  color: var(--lv2-accent);
 }
 
 .lv2-drawer-arrow {
@@ -280,7 +297,7 @@
 .lv2-drawer-item:active .lv2-drawer-arrow,
 .lv2-drawer-item:hover .lv2-drawer-arrow {
   transform: translateX(6px);
-  color: #8fb6ff;
+  color: var(--lv2-accent-hi);
 }
 
 .lv2-drawer-foot {
@@ -298,6 +315,36 @@
   .lv2-burger {
     display: flex;
   }
+}
+
+/* ── Pinned scroll-story heights ──────────────────────────────
+   Two declarations each: browsers without dvh keep the vh value, newer
+   ones take dvh so the mobile URL bar can't resize the story mid-scroll.
+   Inline styles can't express this fallback, which is why these live
+   here rather than in the JSX. */
+.lv2-hero {
+  height: 400vh;
+  height: 400dvh;
+}
+
+.lv2-hero-sticky {
+  height: 100vh;
+  height: 100dvh;
+}
+
+.lv2-dev-section {
+  min-height: 105vh;
+  min-height: 105dvh;
+}
+
+.lv2-dev-spacer {
+  min-height: 46vh;
+  min-height: 46dvh;
+}
+
+.lv2-hero-badge {
+  margin-top: 19vh;
+  margin-top: 19dvh;
 }
 
 /* Nav — glass capsule with active-section highlight */
@@ -325,13 +372,13 @@
 }
 
 .lv2-nav-link:hover {
-  color: #eef1f8;
+  color: var(--lv2-ink);
   background: rgba(255, 255, 255, 0.05);
   transform: translateY(-1px);
 }
 
 .lv2-nav-link.lv2-on {
-  color: #8fb6ff;
+  color: var(--lv2-accent-hi);
   background: rgba(109, 168, 255, 0.1);
 }
 
@@ -402,7 +449,7 @@
 }
 
 .lv2-skip:hover {
-  color: #eef1f8;
+  color: var(--lv2-ink);
   border-color: rgba(109, 168, 255, 0.6);
 }
 
@@ -424,7 +471,7 @@
 }
 
 .lv2-row:hover {
-  color: #eef1f8;
+  color: var(--lv2-ink);
 }
 
 /* focus one row, dim the rest */
@@ -441,7 +488,7 @@
 .lv2-row-num {
   font-family: ui-monospace, monospace;
   font-size: var(--lv2-fs-2);
-  color: #6da8ff;
+  color: var(--lv2-accent);
 }
 
 .lv2-row-title {
@@ -461,7 +508,7 @@
 }
 
 .lv2-row-arrow {
-  color: #6da8ff;
+  color: var(--lv2-accent);
   transition: transform 0.3s;
 }
 
@@ -486,7 +533,7 @@
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: 0 24px 60px -18px rgba(0, 0, 0, 0.7);
-  background: #0b0d14;
+  background: var(--lv2-surface);
   margin: 0;
   transition: transform 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
@@ -567,7 +614,7 @@
     background: rgba(9, 11, 18, 0.92);
   }
   .lv2-drawer {
-    background: #06070c;
+    background: var(--lv2-bg);
   }
 }
 
